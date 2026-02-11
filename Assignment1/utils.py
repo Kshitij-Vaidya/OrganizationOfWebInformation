@@ -9,7 +9,10 @@ from pathlib import Path
 from typing import Dict, Iterable, Sequence
 
 import numpy as np
+# from sklearn.kernel_approximation import svd
 from tqdm import tqdm
+from scipy import sparse
+from scipy.sparse.linalg import svds
 
 
 ArrayLike = np.ndarray
@@ -174,6 +177,22 @@ def save_embeddings(
     with (output_path / f"{prefix}_training.json").open("w", encoding="utf-8") as handle:
         json.dump(metadata, handle, indent=2)
 
+def save_svd_embeddings(
+    output_dir: str | Path,
+    vocab: Sequence[str],
+    embeddings: ArrayLike,
+    config: dict,
+    prefix: str = "svd",
+) -> None:
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    np.save(output_path / f"{prefix}_vectors.npy", embeddings)
+    with (output_path / f"{prefix}_vocab.json").open("w", encoding="utf-8") as handle:
+        json.dump(list(vocab), handle)
+    with (output_path / f"{prefix}_config.json").open("w", encoding="utf-8") as handle:
+        json.dump(config, handle, indent=2)
+
 
 def find_nearest_neighbors(
     query_tokens: Sequence[str],
@@ -204,3 +223,35 @@ def find_nearest_neighbors(
                 break
         results[token] = neighbors
     return results
+
+def gen_term_document_matrix(token_sequences: Sequence[Sequence[str]], vocab_to_id: dict[str, int]) -> np.ndarray:
+    """Construct a term-document matrix from token sequences."""
+    num_docs = len(token_sequences)
+    vocab_size = len(vocab_to_id)
+    matrix = sparse.lil_matrix((num_docs, vocab_size), dtype=np.float64)
+
+    for doc_idx, tokens in enumerate(tqdm(token_sequences, desc="Building term-document matrix")):
+        for token in tokens:
+            if token in vocab_to_id:
+                token_id = vocab_to_id[token]
+                matrix[doc_idx, token_id] += 1.0
+
+    matrix = matrix.tocsr()
+    return matrix
+
+def truncated_svd(matrix: sparse.csr_matrix, vector_size: int, seed: int | None = None) -> np.ndarray:
+    """Perform truncated SVD on the given matrix."""
+    # u, s, vt = svds(matrix, k=vector_size, random_state=seed)
+    # return u @ np.diag(s)
+    
+    u, s, vt = svds(matrix, k=vector_size, random_state=seed)
+
+    # svds returns singular values in ascending order → reverse them
+    idx = np.argsort(-s)
+    s = s[idx]
+    vt = vt[idx, :]
+
+    # Word embeddings = V Σ
+    embeddings = vt.T * s
+
+    return embeddings
