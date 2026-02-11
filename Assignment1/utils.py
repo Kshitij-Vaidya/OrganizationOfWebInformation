@@ -5,6 +5,7 @@ import math
 import re
 from collections import defaultdict
 from dataclasses import dataclass, asdict
+from functools import lru_cache
 from pathlib import Path
 from typing import Dict, Iterable, Sequence
 
@@ -175,13 +176,13 @@ def save_embeddings(
         json.dump(metadata, handle, indent=2)
 
 
-def find_nearest_neighbors(
+def find_nearest_neighbours(
     query_tokens: Sequence[str],
     vocab_to_id: dict[str, int],
     embeddings: ArrayLike,
     top_k: int = 5,
 ) -> dict[str, list[tuple[str, float]]]:
-    """Return cosine nearest neighbors for given tokens."""
+    """Return cosine nearest neighbours for given tokens."""
     normed = embeddings / (np.linalg.norm(embeddings, axis=1, keepdims=True) + 1e-12)
     results: dict[str, list[tuple[str, float]]] = {}
     vocab_list = [None] * len(vocab_to_id)
@@ -195,12 +196,134 @@ def find_nearest_neighbors(
         idx = vocab_to_id[token]
         similarities = normed @ normed[idx]
         ranked = np.argsort(-similarities)
-        neighbors: list[tuple[str, float]] = []
+        neighbours: list[tuple[str, float]] = []
         for candidate in ranked:
             if candidate == idx:
                 continue
-            neighbors.append((vocab_list[candidate], float(similarities[candidate])))
-            if len(neighbors) == top_k:
+            neighbours.append((vocab_list[candidate], float(similarities[candidate])))
+            if len(neighbours) == top_k:
                 break
-        results[token] = neighbors
+        results[token] = neighbours
     return results
+
+
+@dataclass(slots=True)
+class CRFFeatureConfig:
+    include_lexical: bool = True
+    include_shape: bool = True
+    include_subword: bool = True
+    window_size: int = 2
+
+
+@lru_cache(maxsize=10000)
+def word_shape(token: str) -> str:
+    """Map token to a compact shape signature (e.g., 'McDonalds' -> 'XxXx')."""
+    shape_chars = []
+    for char in token:
+        if char.isupper():
+            shape_chars.append("X")
+        elif char.islower():
+            shape_chars.append("x")
+        elif char.isdigit():
+            shape_chars.append("d")
+        else:
+            shape_chars.append("_")
+    if not shape_chars:
+        return ""
+    compressed = [shape_chars[0]]
+    for char in shape_chars[1:]:
+        if char != compressed[-1]:
+            compressed.append(char)
+    return "".join(compressed)
+
+
+def sentence_to_features(
+    sentence: Sequence[tuple[str, str, str, str]],
+    config: CRFFeatureConfig,
+) -> list[dict[str, object]]:
+    """Convert a sentence into a list of CRF feature dicts."""
+    features: list[dict[str, object]] = []
+    for index in range(len(sentence)):
+        features.append(token_to_features(sentence, index, config))
+    return features
+
+
+def sentence_to_labels(sentence: Sequence[tuple[str, str, str, str]]) -> list[str]:
+    return [label for (_, _, _, label) in sentence]
+
+
+def token_to_features(
+    sentence: Sequence[tuple[str, str, str, str]],
+    index: int,
+    config: CRFFeatureConfig,
+) -> dict[str, object]:
+    word, pos, chunk, _ = sentence[index]
+    features: dict[str, object] = {
+        "bias": 1.0,
+    }
+
+    if config.include_lexical:
+        features.update(
+            {
+                "word.lower": word.lower(),
+                "pos": pos,
+                "chunk": chunk,
+                "pos[:2]": pos[:2],
+            }
+        )
+
+    if config.include_shape:
+        features.update(
+            {
+                "word.isupper": word.isupper(),
+                "word.istitle": word.istitle(),
+                "word.isdigit": word.isdigit(),
+                "word.shape": word_shape(word),
+                "word.has_digit": any(char.isdigit() for char in word),
+                "word.has_hyphen": "-" in word,
+                "word.has_period": "." in word,
+            }
+        )
+
+    if config.include_subword:
+        lowered = word.lower()
+        for length in (2, 3, 4):
+            if len(lowered) >= length:
+                features[f"pref{length}"] = lowered[:length]
+                features[f"suf{length}"] = lowered[-length:]
+
+    window = config.window_size
+    for offset in range(1, window + 1):
+        prev_index = index - offset
+        if prev_index >= 0:
+            prev_word, prev_pos, prev_chunk, _ = sentence[prev_index]
+            prefix = f"- {offset}"
+            if config.include_lexical:
+                features[f"{prefix}:word.lower"] = prev_word.lower()
+                features[f"{prefix}:pos"] = prev_pos
+                features[f"{prefix}:chunk"] = prev_chunk
+            if config.include_shape:
+                features[f"{prefix}:word.isupper"] = prev_word.isupper()
+                features[f"{prefix}:word.istitle"] = prev_word.istitle()
+                features[f"{prefix}:word.isdigit"] = prev_word.isdigit()
+                features[f"{prefix}:word.shape"] = word_shape(prev_word)
+        else:
+            features[f"BOS{offset}"] = True
+
+        next_index = index + offset
+        if next_index < len(sentence):
+            next_word, next_pos, next_chunk, _ = sentence[next_index]
+            prefix = f"+ {offset}"
+            if config.include_lexical:
+                features[f"{prefix}:word.lower"] = next_word.lower()
+                features[f"{prefix}:pos"] = next_pos
+                features[f"{prefix}:chunk"] = next_chunk
+            if config.include_shape:
+                features[f"{prefix}:word.isupper"] = next_word.isupper()
+                features[f"{prefix}:word.istitle"] = next_word.istitle()
+                features[f"{prefix}:word.isdigit"] = next_word.isdigit()
+                features[f"{prefix}:word.shape"] = word_shape(next_word)
+        else:
+            features[f"EOS{offset}"] = True
+
+    return features
