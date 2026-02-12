@@ -10,9 +10,8 @@ from scipy import sparse
 
 from utils import (
     build_vocabulary_index,
-    find_nearest_neighbors,
+    find_nearest_neighbours,
     load_data,
-    save_embeddings,
     tokenize_corpus,
     gen_term_document_matrix,
     truncated_svd,
@@ -119,7 +118,7 @@ def compile_neighbors(
     if missing_queries:
         print("Tokens not found in vocabulary:", ", ".join(sorted(set(missing_queries))))
 
-    result = find_nearest_neighbors(present_queries, vocab_to_id, embeddings, top_k=top_k)
+    result = find_nearest_neighbours(present_queries, vocab_to_id, embeddings, top_k=top_k)
     for token in missing_queries:
         result[token] = []
     return result
