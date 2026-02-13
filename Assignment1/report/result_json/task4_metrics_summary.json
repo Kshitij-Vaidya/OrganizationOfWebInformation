@@ -1,0 +1,20 @@
+{
+  "runs": [
+    {
+      "dimension": 50,
+      "metrics_path": "output/task4/task4_metrics_d50.json"
+    },
+    {
+      "dimension": 100,
+      "metrics_path": "output/task4/task4_metrics_d100.json"
+    },
+    {
+      "dimension": 200,
+      "metrics_path": "output/task4/task4_metrics_d200.json"
+    },
+    {
+      "dimension": 300,
+      "metrics_path": "output/task4/task4_metrics_d300.json"
+    }
+  ]
+}

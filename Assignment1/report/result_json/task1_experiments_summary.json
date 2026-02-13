@@ -1,0 +1,94 @@
+{
+  "experiments": [
+    {
+      "run_id": "w2_lr0.05_d200",
+      "window_size": 2,
+      "learning_rate": 0.05,
+      "epochs": 25,
+      "vector_size": 200,
+      "final_loss": 0.010727699340035042,
+      "latency_seconds": 1627.0917910830467
+    },
+    {
+      "run_id": "w2_lr0.1_d200",
+      "window_size": 2,
+      "learning_rate": 0.1,
+      "epochs": 25,
+      "vector_size": 200,
+      "final_loss": 0.012214662934878408,
+      "latency_seconds": 1555.92968195898
+    },
+    {
+      "run_id": "w5_lr0.05_d200",
+      "window_size": 5,
+      "learning_rate": 0.05,
+      "epochs": 25,
+      "vector_size": 200,
+      "final_loss": 0.010018282898514806,
+      "latency_seconds": 2651.833257624996
+    },
+    {
+      "run_id": "w5_lr0.1_d200",
+      "window_size": 5,
+      "learning_rate": 0.1,
+      "epochs": 25,
+      "vector_size": 200,
+      "final_loss": 0.010951814344937184,
+      "latency_seconds": 2402.273862208007
+    },
+    {
+      "run_id": "w10_lr0.05_d200",
+      "window_size": 10,
+      "learning_rate": 0.05,
+      "epochs": 25,
+      "vector_size": 200,
+      "final_loss": 0.008987502174053506,
+      "latency_seconds": 7638.966381874983
+    },
+    {
+      "run_id": "w10_lr0.1_d200",
+      "window_size": 10,
+      "learning_rate": 0.1,
+      "epochs": 25,
+      "vector_size": 200,
+      "final_loss": 0.009647694037140166,
+      "latency_seconds": 8120.316088374995
+    },
+    {
+      "run_id": "w10_lr0.05_e25_d50",
+      "window_size": 10,
+      "learning_rate": 0.05,
+      "epochs": 25,
+      "vector_size": 50,
+      "final_loss": 0.01389136922403767,
+      "latency_seconds": 7641.600748417026
+    },
+    {
+      "run_id": "w10_lr0.05_e25_d100",
+      "window_size": 10,
+      "learning_rate": 0.05,
+      "epochs": 25,
+      "vector_size": 100,
+      "final_loss": 0.011441065082982238,
+      "latency_seconds": 7488.728776249976
+    },
+    {
+      "run_id": "w10_lr0.05_e25_d200",
+      "window_size": 10,
+      "learning_rate": 0.05,
+      "epochs": 25,
+      "vector_size": 200,
+      "final_loss": 0.008987502174053506,
+      "latency_seconds": 7582.927087791031
+    },
+    {
+      "run_id": "w10_lr0.05_e25_d300",
+      "window_size": 10,
+      "learning_rate": 0.05,
+      "epochs": 25,
+      "vector_size": 300,
+      "final_loss": 0.007637418777224664,
+      "latency_seconds": 7969.108018332976
+    }
+  ]
+}

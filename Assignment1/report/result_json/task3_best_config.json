@@ -1,0 +1,6 @@
+{
+  "include_lexical": true,
+  "include_shape": true,
+  "include_subword": true,
+  "window_size": 2
+}

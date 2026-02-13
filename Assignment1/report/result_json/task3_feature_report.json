@@ -1,0 +1,160 @@
+{
+  "feature_templates": [
+    "bias",
+    "word.lower",
+    "pos",
+    "chunk",
+    "pos[:2]",
+    "word.isupper",
+    "word.istitle",
+    "word.isdigit",
+    "word.shape",
+    "word.has_digit",
+    "word.has_hyphen",
+    "word.has_period",
+    "pref2",
+    "pref3",
+    "pref4",
+    "suf2",
+    "suf3",
+    "suf4",
+    "- 1:word.lower",
+    "- 1:pos",
+    "- 1:chunk",
+    "+ 1:word.lower",
+    "+ 1:pos",
+    "+ 1:chunk",
+    "- 1:word.isupper",
+    "- 1:word.istitle",
+    "- 1:word.isdigit",
+    "- 1:word.shape",
+    "+ 1:word.isupper",
+    "+ 1:word.istitle",
+    "+ 1:word.isdigit",
+    "+ 1:word.shape",
+    "BOS1",
+    "EOS1",
+    "- 2:word.lower",
+    "- 2:pos",
+    "- 2:chunk",
+    "+ 2:word.lower",
+    "+ 2:pos",
+    "+ 2:chunk",
+    "- 2:word.isupper",
+    "- 2:word.istitle",
+    "- 2:word.isdigit",
+    "- 2:word.shape",
+    "+ 2:word.isupper",
+    "+ 2:word.istitle",
+    "+ 2:word.isdigit",
+    "+ 2:word.shape",
+    "BOS2",
+    "EOS2"
+  ],
+  "top_features": {
+    "state_features": [
+      [
+        "word.shape:x",
+        "O",
+        5.980183
+      ],
+      [
+        "word.has_digit",
+        "O",
+        5.239299
+      ],
+      [
+        "BOS1",
+        "I-ORG",
+        -4.688309
+      ],
+      [
+        "word.shape:x_x",
+        "O",
+        4.556975
+      ],
+      [
+        "- 1:word.lower:v",
+        "B-ORG",
+        4.416038
+      ],
+      [
+        "word.shape:_",
+        "O",
+        4.405627
+      ],
+      [
+        "BOS1",
+        "I-MISC",
+        -4.242735
+      ],
+      [
+        "+ 2:word.lower:yellow",
+        "B-LOC",
+        4.189151
+      ],
+      [
+        "+ 1:word.lower:arose",
+        "B-ORG",
+        3.918548
+      ],
+      [
+        "+ 1:word.lower:arose",
+        "O",
+        -3.872098
+      ]
+    ],
+    "transition_features": [
+      [
+        "O",
+        "I-ORG",
+        -8.048317
+      ],
+      [
+        "I-LOC",
+        "I-LOC",
+        6.697862
+      ],
+      [
+        "B-PER",
+        "I-PER",
+        6.692389
+      ],
+      [
+        "B-LOC",
+        "I-LOC",
+        6.512631
+      ],
+      [
+        "O",
+        "I-MISC",
+        -6.334271
+      ],
+      [
+        "I-ORG",
+        "I-ORG",
+        5.902069
+      ],
+      [
+        "I-MISC",
+        "I-MISC",
+        5.888272
+      ],
+      [
+        "B-ORG",
+        "I-ORG",
+        5.782494
+      ],
+      [
+        "O",
+        "I-PER",
+        -5.616858
+      ],
+      [
+        "B-MISC",
+        "I-MISC",
+        5.257181
+      ]
+    ]
+  }
+}
