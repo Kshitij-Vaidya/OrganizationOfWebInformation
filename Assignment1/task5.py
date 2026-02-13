@@ -13,7 +13,7 @@ from utils import (
     find_nearest_neighbours,
     load_data,
     tokenize_corpus,
-    gen_term_document_matrix,
+    gen_tfidf_term_document_matrix,
     truncated_svd,
     save_svd_embeddings,
 )
@@ -29,7 +29,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=str,
-        default="output/task2",
+        default="output/task5",
         help="Directory where embeddings and metadata will be stored.",
     )
     parser.add_argument(
@@ -90,21 +90,21 @@ def run_svd(args: argparse.Namespace) -> None:
 
     print("Constructing term-document matrix...")
     # Term-document matrix construction and SVD-based embedding learning
-    term_document_matrix: sparse.csr_matrix = gen_term_document_matrix(token_sequences, vocab_to_id)
+    term_document_matrix: sparse.csr_matrix = gen_tfidf_term_document_matrix(token_sequences, vocab_to_id)
 
     print("Performing truncated SVD...")
     embeddings = truncated_svd(term_document_matrix, vector_size=args.d, seed=args.seed)
 
-    save_svd_embeddings(output_dir=args.output_dir, vocab=vocab_list, embeddings=embeddings, config={"vector_size": args.d}, prefix=f"svd_d{args.d}")
+    save_svd_embeddings(output_dir=args.output_dir, vocab=vocab_list, embeddings=embeddings, config={"vector_size": args.d}, prefix=f"svd_tfidf_d{args.d}")
     print(f"SVD embeddings saved to {args.output_dir}")
 
     
     if args.neighbours:
         neighbor_report = compile_neighbors(args.neighbours, vocab_to_id, embeddings, args.top_k)
         output_path = Path(args.output_dir)
-        with (output_path / f"svd_d{args.d}_neighbors.json").open("w", encoding="utf-8") as handle:
+        with (output_path / f"svd_tfidf_d{args.d}_neighbors.json").open("w", encoding="utf-8") as handle:
             json.dump(neighbor_report, handle, indent=2)
-        print("Nearest neighbor report written to", output_path / f"svd_d{args.d}_neighbors.json")
+        print("Nearest neighbor report written to", output_path / f"svd_tfidf_d{args.d}_neighbors.json")
 
 def compile_neighbors(
     query_tokens: Sequence[str],
