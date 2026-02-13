@@ -19,7 +19,7 @@ def parse_args():
     p.add_argument("--svd-dir", type=str, default="output/task2") # Update this accordingly
     p.add_argument("--output-dir", type=str, default="output/task4") 
     p.add_argument("--batch-size", type=int, default=256)
-    p.add_argument("--epochs", type=int, default=8)
+    p.add_argument("--epochs", type=int, default=50)
     p.add_argument("--lr", type=float, default=1e-3)
     p.add_argument("--hidden", type=int, default=256)
     p.add_argument("--seed", type=int, default=17)
@@ -30,12 +30,15 @@ class TokenMLP(nn.Module):
     def __init__(self, d_in: int, hidden: int, num_classes: int):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(d_in, hidden),
+            nn.Linear(d_in, 2*hidden),
+            nn.LayerNorm(2*hidden),
+            nn.ReLU(),
+            nn.Dropout(0.4),
+
+            nn.Linear(2*hidden, hidden),
             nn.ReLU(),
             nn.Dropout(0.3),
-            nn.Linear(hidden, hidden),
-            nn.ReLU(),
-            nn.Dropout(0.3),
+
             nn.Linear(hidden, num_classes)
         )
 
@@ -175,6 +178,7 @@ def main():
         base = matches[0].with_name(matches[0].name.replace("_vectors.npy",""))
         vocab = json.load(open(str(base)+"_vocab.json"))
         vecs = np.load(str(base)+"_vectors.npy")
+        vecs = vecs / (np.linalg.norm(vecs, axis=1, keepdims=True) + 1e-7)
 
         lookup = build_lookup(vocab, vecs)
 
@@ -193,6 +197,7 @@ def main():
 
         vocab = json.load(open(str(base)+"_vocab.json"))
         vecs = np.load(str(base)+"_vectors.npy")
+        vecs = vecs / (np.linalg.norm(vecs, axis=1, keepdims=True) + 1e-7) 
 
         lookup = build_lookup(vocab, vecs)
 
