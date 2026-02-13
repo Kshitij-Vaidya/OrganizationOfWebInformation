@@ -362,6 +362,28 @@ def gen_term_document_matrix(token_sequences: Sequence[Sequence[str]], vocab_to_
     matrix = matrix.tocsr()
     return matrix
 
+def gen_tfidf_term_document_matrix(token_sequences: Sequence[Sequence[str]], vocab_to_id: dict[str, int]) -> np.ndarray:
+    """Construct a TF-IDF weighted term-document matrix from token sequences."""
+    num_docs = len(token_sequences)
+    vocab_size = len(vocab_to_id)
+    term_freq = sparse.lil_matrix((num_docs, vocab_size), dtype=np.float64)
+    doc_freq = np.zeros(vocab_size, dtype=np.float64)
+
+    for doc_idx, tokens in enumerate(tqdm(token_sequences, desc="Building term-document matrix")):
+        seen_tokens = set()
+        for token in tokens:
+            if token in vocab_to_id:
+                token_id = vocab_to_id[token]
+                term_freq[doc_idx, token_id] += 1.0
+                if token_id not in seen_tokens:
+                    doc_freq[token_id] += 1.0
+                    seen_tokens.add(token_id)
+
+    idf = np.log((num_docs + 1) / (doc_freq + 1)) + 1
+    tfidf_matrix = term_freq.tocsr()
+    tfidf_matrix = tfidf_matrix.multiply(idf)
+    return tfidf_matrix
+
 def truncated_svd(matrix: sparse.csr_matrix, vector_size: int, seed: int | None = None) -> np.ndarray:
     """Perform truncated SVD on the given matrix."""
     # u, s, vt = svds(matrix, k=vector_size, random_state=seed)
