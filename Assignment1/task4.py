@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import List, Tuple
 
 import numpy as np
 import torch
@@ -13,9 +13,23 @@ from torch.utils.data import Dataset, DataLoader
 from datasets import load_dataset
 from sklearn.metrics import f1_score, accuracy_score
 
+TASK1_SELECTION = "output/task1/task1_selected_hyperparameters.json"
+
 def parse_args():
     p = argparse.ArgumentParser("Task4 MLP NER")
-    p.add_argument("--glove-dir", type=str, default="output/task1") # Update this accordingly
+    p.add_argument(
+        "--embedding-vectors",
+        type=str,
+        default="output/task1/glove_w10_lr0.05_e25_d200_vectors.npy",
+    )
+    p.add_argument(
+        "--embedding-vocab",
+        type=str,
+        default="output/task1/glove_w10_lr0.05_e25_d200_vocab.json",
+    )
+    p.add_argument("--task1-dir", type=str, default="output/task1")
+    p.add_argument("--dims", type=int, nargs="*", default=[50, 100, 200, 300])
+    p.add_argument("--single", action="store_true")
     p.add_argument("--svd-dir", type=str, default="output/task2") # Update this accordingly
     p.add_argument("--output-dir", type=str, default="output/task4") 
     p.add_argument("--batch-size", type=int, default=256)
@@ -109,6 +123,13 @@ def tokens_to_matrix(tokens: List[str], lookup):
     return X
 
 
+def format_lr(value: float) -> str:
+    text = f"{value}"
+    if text.endswith(".0"):
+        return text[:-2]
+    return text
+
+
 
 def train_eval(name, Xtr, ytr, Xdv, ydv, Xte, yte, d, args, num_classes):
 
@@ -169,43 +190,68 @@ def main():
     dims = [50, 100, 200, 300]
 
     # -------- GLOVE --------
-    for d in dims:
-        print(f"\n=== Evaluating GloVe with d={d} ===")
-        prefix = Path(args.glove_dir) / f"glove_*_d{d}" # Update this pattern if your files are named differently
-        matches = list(prefix.parent.glob(prefix.name + "_vectors.npy"))
-        if not matches:
-            continue
-        base = matches[0].with_name(matches[0].name.replace("_vectors.npy",""))
-        vocab = json.load(open(str(base)+"_vocab.json"))
-        vecs = np.load(str(base)+"_vectors.npy")
+    if args.single:
+        vectors_path = Path(args.embedding_vectors)
+        vocab_path = Path(args.embedding_vocab)
+        vocab = json.load(open(vocab_path))
+        vecs = np.load(vectors_path)
         vecs = vecs / (np.linalg.norm(vecs, axis=1, keepdims=True) + 1e-7)
+        d = vecs.shape[1]
 
         lookup = build_lookup(vocab, vecs)
-
         Xtr = tokens_to_matrix(tr_tok, lookup)
         Xdv = tokens_to_matrix(dv_tok, lookup)
         Xte = tokens_to_matrix(te_tok, lookup)
 
-        results.append(train_eval(f"GloVe-MLP", Xtr, ytr, Xdv, ydv, Xte, yte, d, args, num_classes))
+        results.append(train_eval("GloVe-MLP", Xtr, ytr, Xdv, ydv, Xte, yte, d, args, num_classes))
+    else:
+        selection_path = Path(TASK1_SELECTION)
+        with selection_path.open("r", encoding="utf-8") as handle:
+            selected = json.load(handle)
+
+        window_size = int(selected["window_size"])
+        learning_rate = float(selected["learning_rate"])
+        epochs = int(selected["epochs"])
+        lr_text = format_lr(learning_rate)
+
+        for d in args.dims:
+            print(f"\n=== Evaluating GloVe with d={d} ===")
+            vectors_name = f"glove_w{window_size}_lr{lr_text}_e{epochs}_d{d}_vectors.npy"
+            vocab_name = f"glove_w{window_size}_lr{lr_text}_e{epochs}_d{d}_vocab.json"
+            vectors_path = Path(args.task1_dir) / vectors_name
+            vocab_path = Path(args.task1_dir) / vocab_name
+            if not vectors_path.exists() or not vocab_path.exists():
+                continue
+
+            vocab = json.load(open(vocab_path))
+            vecs = np.load(vectors_path)
+            vecs = vecs / (np.linalg.norm(vecs, axis=1, keepdims=True) + 1e-7)
+
+            lookup = build_lookup(vocab, vecs)
+            Xtr = tokens_to_matrix(tr_tok, lookup)
+            Xdv = tokens_to_matrix(dv_tok, lookup)
+            Xte = tokens_to_matrix(te_tok, lookup)
+
+            results.append(train_eval("GloVe-MLP", Xtr, ytr, Xdv, ydv, Xte, yte, d, args, num_classes))
 
     # -------- SVD --------
-    for d in dims:
-        print(f"\n=== Evaluating SVD with d={d} ===")
-        base = Path(args.svd_dir) / f"svd_d{d}"
-        if not (base.with_name(base.name + "_vectors.npy")).exists():
-            continue
+    # for d in dims:
+    #     print(f"\n=== Evaluating SVD with d={d} ===")
+    #     base = Path(args.svd_dir) / f"svd_d{d}"
+    #     if not (base.with_name(base.name + "_vectors.npy")).exists():
+    #         continue
 
-        vocab = json.load(open(str(base)+"_vocab.json"))
-        vecs = np.load(str(base)+"_vectors.npy")
-        vecs = vecs / (np.linalg.norm(vecs, axis=1, keepdims=True) + 1e-7) 
+    #     vocab = json.load(open(str(base)+"_vocab.json"))
+    #     vecs = np.load(str(base)+"_vectors.npy")
+    #     vecs = vecs / (np.linalg.norm(vecs, axis=1, keepdims=True) + 1e-7) 
 
-        lookup = build_lookup(vocab, vecs)
+    #     lookup = build_lookup(vocab, vecs)
 
-        Xtr = tokens_to_matrix(tr_tok, lookup)
-        Xdv = tokens_to_matrix(dv_tok, lookup)
-        Xte = tokens_to_matrix(te_tok, lookup)
+    #     Xtr = tokens_to_matrix(tr_tok, lookup)
+    #     Xdv = tokens_to_matrix(dv_tok, lookup)
+    #     Xte = tokens_to_matrix(te_tok, lookup)
 
-        results.append(train_eval(f"SVD-MLP", Xtr, ytr, Xdv, ydv, Xte, yte, d, args, num_classes))
+    #     results.append(train_eval(f"SVD-MLP", Xtr, ytr, Xdv, ydv, Xte, yte, d, args, num_classes))
 
     json.dump(results, open(outdir/"task4_results.json","w"), indent=2)
 
