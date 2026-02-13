@@ -29,7 +29,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=str,
-        default="artifacts/task1",
+        default="output/task2",
         help="Directory where embeddings and metadata will be stored.",
     )
     parser.add_argument(
