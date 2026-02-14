@@ -219,3 +219,13 @@ __marimo__/
 **/data/
 **/output/
 **/artifacts/
+
+# latex build files
+*.aux
+*.log
+*.fdb_latexmk
+*.fls
+*.synctex.gz
+*.toc
+*.fmt
+*.out
