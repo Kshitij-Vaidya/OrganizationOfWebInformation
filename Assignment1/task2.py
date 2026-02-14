@@ -25,30 +25,6 @@ VECTOR_SIZE = 200
 TOP_K = 5
 
 def run_svd() -> None:
-    # vocab, corpus = load_data(DATA_PATH)
-    # vocab_list, vocab_to_id = build_vocabulary_index(vocab)
-    # tokenized_corpus = tokenize_corpus(corpus, vocab_filter=set(vocab_list))
-
-    # # Placeholder for co-occurrence matrix construction and SVD
-    # # cooccurrence_matrix = build_cooccurrence_matrix(tokenized_corpus, vocab_to_id, window_size=args.window_size)
-    # # embeddings = perform_svd(cooccurrence_matrix, vector_size=VECTOR_SIZE)
-
-    # # For demonstration, we'll create random embeddings
-    # np.random.seed(SEED)
-    # embeddings = np.random.rand(len(vocab_list), VECTOR_SIZE)
-
-    # output_dir = Path(OUTPUT_DIR)
-    # output_dir.mkdir(parents=True, exist_ok=True)
-    # save_embeddings(embeddings, vocab_list, output_dir / "embeddings.json")
-
-    # if NEIGHBOURS:
-    #     for token in NEIGHBOURS:
-    #         if token in vocab_to_id:
-    #             token_id = vocab_to_id[token]
-    #             neighbors = find_nearest_neighbors(embeddings, token_id, top_k=TOP_K)
-    #             print(f"Nearest neighbors for '{token}': {[vocab_list[n] for n in neighbors]}")
-    #         else:
-    #             print(f"Token '{token}' not found in vocabulary.")
     print("Loading data and building vocabulary...")
     vocab, corpus = load_data(DATA_PATH)
     vocab_list, vocab_to_id = build_vocabulary_index(vocab)

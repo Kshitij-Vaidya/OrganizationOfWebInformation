@@ -7,6 +7,7 @@
 \usepackage{algpseudocode}
 \usepackage{hyperref}
 \usepackage{enumitem}
+\usepackage{multirow}
 
 \title{CS728: Assignment 1}
 \author{Jay Mehta: 22B1281\\
@@ -23,22 +24,23 @@
 \chapter{Task 1}
 
 The following table shows the final parameters used for the Glove training:
-
 \begin{table}[h]
-\centering
-\begin{tabular}{cc}
-\hline
-Hyperparameter & Value \\
-\hline
-Window Size ($w$) & 10 \\
-Learning Rate ($\eta$) & 0.05 \\
-Epochs & 25 \\
-$x_{\max}$ & 100 \\
-$\alpha$ & 0.75 \\
-\hline
-\end{tabular}
-\caption{Selected GloVe hyperparameters}
+    \centering
+    \begin{tabular}{cc}
+        \hline
+        Hyperparameter & Value \\
+        \hline
+        Window Size ($w$) & 10 \\
+        Learning Rate ($\eta$) & 0.05 \\
+        Epochs & 25 \\
+        $x_{\max}$ & 100 \\
+        $\alpha$ & 0.75 \\
+        \hline
+    \end{tabular}
+    \caption{Selected GloVe hyperparameters}
 \end{table}
+
+\noindent Nearest Neighbours for this task have been mentioned with results of Task 2.
 
 \begin{figure}[!htbp]
     \centering
@@ -65,8 +67,37 @@ $\alpha$ & 0.75 \\
 \end{figure}
 
 
-
 \chapter{Task 2}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ccc}
+\hline
+Model & Word & Top-5 Neighbours \\
+\hline
+\multirow{3}{*}{GloVe (d=200)} & data & showed, statistics, tracking, according, information \\
+ & cities & towns, counties, across, areas, twin \\
+ & temperature & temperatures, maximum, levels, rainfall, room \\
+\hline
+\multirow{3}{*}{SVD (d=50)} & data & consumers, risk, tracking, technology, exposure \\
+ & cities & urban, influx, airports, communities, places \\
+ & temperature & heating, severe, fog, checking, causes \\
+\hline
+\multirow{3}{*}{SVD (d=100)} & data & automated, rapid, tool, specific, tracking \\
+ & cities & urban, transit, places, tourism, suburbs \\
+ & temperature & skin, heating, pump, cold, dry \\
+\hline
+\multirow{3}{*}{SVD (d=200)} & data & infrastructure, authentication, formulated, users, est \\
+ & cities & urban, mayor, city, transit, vast \\
+ & temperature & cold, slow, evaporate, brush, water \\
+\hline
+\multirow{3}{*}{SVD (d=300)} & data & mainframe, users, collected, infrastructure, breach \\
+ & cities & urban, city, mayor, vast, places \\
+ & temperature & cold, temperatures, evaporate, surface, fluids \\
+\hline
+\end{tabular}
+\caption{Top-5 nearest neighbours for selected words in GloVe and SVD models}
+\end{table}
 
 \chapter{Task 3}
 
@@ -119,6 +150,26 @@ From this we see that the best performance is achieved with the GloVe embeddings
 \end{figure}
 
 \chapter{Task 5}
-
+\begin{table}[h]
+\centering
+\begin{tabular}{ccc}
+\hline
+Model & Word & Top-5 Neighbours \\
+\hline
+\multirow{5}{*}{Raw SVD (d=200)} & data & infrastructure, authentication, formulated, users, est \\
+ & temperature & cold, slow, evaporate, brush, water \\
+ & cities & urban, mayor, city, transit, vast \\
+ & apple & Not in vocabulary \\
+ & fast & enough, hard, keep, make, stopping \\
+\hline
+\multirow{5}{*}{TFIDF SVD (d=200)} & data & formulated, infrastructures, reads, est, mentioning \\
+ & temperature & cold, evaporate, temperatures, climatologist, gases \\
+ & cities & urban, inexorable, mayor, city, vast \\
+ & apple & Not in vocabulary \\
+ & fast & enough, hard, quick, make, up \\
+\hline
+\end{tabular}
+\caption{Comparison of Top-5 nearest neighbours for selected words in raw-SVD and TFIDF-SVD models}
+\end{table}
 \end{document}
 
