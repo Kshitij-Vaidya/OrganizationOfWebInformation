@@ -21,68 +21,20 @@ from utils import (
     tokenize_corpus,
 )
 
+DATA_PATH = "data/updated_vocab_document_dict.json"
+OUTPUT_DIR = "output/task1"
+NEIGHBOURS = ["data", "cities", "temperature"]
+SEED = 17
+WINDOW_SIZE = 5
+VECTOR_SIZE = 200
+LEARNING_RATE = 0.05
+EPOCHS = 25
+TOP_K = 5
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train GloVe embeddings for Task 1")
-    parser.add_argument(
-        "--data-path",
-        type=str,
-        default="data/updated_vocab_document_dict.json",
-        help="Path to the CC-News vocabulary-document mapping JSON.",
-    )
-    parser.add_argument(
-        "--output-dir",
-        type=str,
-        default="output/task1",
-        help="Directory where embeddings and metadata will be stored.",
-    )
-    parser.add_argument(
-        "--window-size",
-        type=int,
-        default=5,
-        help="Number of tokens to consider on each side during co-occurrence counting.",
-    )
-    parser.add_argument(
-        "--vector-size",
-        type=int,
-        default=200,
-        help="Dimensionality of the learned embeddings.",
-    )
-    parser.add_argument(
-        "--learning-rate",
-        type=float,
-        default=0.05,
-        help="Learning rate used by the optimizer.",
-    )
-    parser.add_argument(
-        "--epochs",
-        type=int,
-        default=25,
-        help="Number of passes over the co-occurrence statistics.",
-    )
-    parser.add_argument(
-        "--seed",
-        type=int,
-        default=17,
-        help="Random seed for reproducibility.",
-    )
-    parser.add_argument(
-        "--neighbours",
-        nargs="*",
-        default=None,
-        help="Optional list of vocabulary tokens for nearest neighbour inspection.",
-    )
-    parser.add_argument(
-        "--top-k",
-        type=int,
-        default=5,
-        help="Number of neighbours to report when --neighbours is provided.",
-    )
-    parser.add_argument(
-        "--quiet",
-        action="store_true",
-        help="Disable per-epoch loss logging during training.",
-    )
+
     parser.add_argument(
         "--run",
         action="store_true",
@@ -92,29 +44,29 @@ def parse_args() -> argparse.Namespace:
 
 
 def run_training(args: argparse.Namespace) -> None:
-    vocab, corpus = load_data(args.data_path)
+    vocab, corpus = load_data(DATA_PATH)
     vocab_list, vocab_to_id = build_vocabulary_index(vocab)
 
     token_sequences = tokenize_corpus(corpus, set(vocab_list))
-    cooccurrence = build_cooccurrence_matrix(token_sequences, vocab_to_id, args.window_size)
+    cooccurrence = build_cooccurrence_matrix(token_sequences, vocab_to_id, WINDOW_SIZE)
     cooccurrence_triplets = cooccurrence_items(cooccurrence)
 
     config = GloVeConfig(
-        vector_size=args.vector_size,
+        vector_size=VECTOR_SIZE,
         x_max=100,
         alpha=0.75,
-        learning_rate=args.learning_rate,
-        seed=args.seed,
+        learning_rate=LEARNING_RATE,
+        seed=SEED,
     )
     model = GloVeModel(vocab_size=len(vocab_list), config=config)
-    history = model.fit(cooccurrence_triplets, epochs=args.epochs, verbose=not args.quiet)
+    history = model.fit(cooccurrence_triplets, epochs=EPOCHS)
 
     embeddings = model.get_embeddings()
-    save_embeddings(args.output_dir, vocab_list, embeddings, history, config)
+    save_embeddings(OUTPUT_DIR, vocab_list, embeddings, history, config)
 
-    # if args.neighbours:
-    #     neighbor_report = compile_neighbours(args.neighbours, vocab_to_id, embeddings, args.top_k)
-    #     output_path = Path(args.output_dir)
+    # if NEIGHBOURS:
+    #     neighbor_report = compile_neighbours(NEIGHBOURS, vocab_to_id, embeddings, TOP_K)
+    #     output_path = Path(OUTPUT_DIR)
     #     with (output_path / "glove_neighbours.json").open("w", encoding="utf-8") as handle:
     #         json.dump(neighbor_report, handle, indent=2)
     #     print("Nearest neighbor report written to", output_path / "glove_neighbours.json")
@@ -139,10 +91,10 @@ def compile_neighbours(
 
 
 def run_experiments(args: argparse.Namespace) -> None:
-    output_path = Path(args.output_dir)
+    output_path = Path(OUTPUT_DIR)
     output_path.mkdir(parents=True, exist_ok=True)
 
-    vocab, corpus = load_data(args.data_path)
+    vocab, corpus = load_data(DATA_PATH)
     vocab_list, vocab_to_id = build_vocabulary_index(vocab)
     token_sequences = tokenize_corpus(corpus, set(vocab_list))
 
@@ -152,7 +104,7 @@ def run_experiments(args: argparse.Namespace) -> None:
     sweep_dimension = 200
     experiments: list[dict[str, float | int | str]] = []
     histories: list[dict[str, object]] = []
-
+    # For the fixed dimension of 200, run a grid search over the window sizes and learning rates to determine the best hyperparameters
     for window_size in window_sizes:
         cooccurrence = build_cooccurrence_matrix(token_sequences, vocab_to_id, window_size)
         cooccurrence_triplets = cooccurrence_items(cooccurrence)
@@ -163,12 +115,12 @@ def run_experiments(args: argparse.Namespace) -> None:
                 x_max=100,
                 alpha=0.75,
                 learning_rate=learning_rate,
-                seed=args.seed,
+                seed=SEED,
             )
             model = GloVeModel(vocab_size=len(vocab_list), config=config)
 
             start_time = time.perf_counter()
-            history = model.fit(cooccurrence_triplets, epochs=25, verbose=not args.quiet)
+            history = model.fit(cooccurrence_triplets, epochs=25)
             latency = time.perf_counter() - start_time
 
             embeddings = model.get_embeddings()
@@ -203,6 +155,8 @@ def run_experiments(args: argparse.Namespace) -> None:
     plt.savefig(output_path / "task1_loss_curves_d200.png", dpi=200)
     plt.close()
 
+    # Select the best hyperparameters from above and run a search over the dimension of the glove vectors
+
     best_run = min(experiments, key=lambda item: item["final_loss"])
     best_window = int(best_run["window_size"])
     best_learning_rate = float(best_run["learning_rate"])
@@ -234,12 +188,12 @@ def run_experiments(args: argparse.Namespace) -> None:
             x_max=100,
             alpha=0.75,
             learning_rate=best_learning_rate,
-            seed=args.seed,
+            seed=SEED,
         )
         model = GloVeModel(vocab_size=len(vocab_list), config=config)
 
         start_time = time.perf_counter()
-        history = model.fit(cooccurrence_triplets, epochs=best_epochs, verbose=not args.quiet)
+        history = model.fit(cooccurrence_triplets, epochs=best_epochs)
         latency = time.perf_counter() - start_time
 
         embeddings = model.get_embeddings()
@@ -268,13 +222,13 @@ def run_experiments(args: argparse.Namespace) -> None:
                 embeddings = np.load(neighbour_vectors_path)
                 best_vocab_to_id = {token: idx for idx, token in enumerate(best_vocab_list)}
 
-                if args.neighbours:
-                    neighbor_queries = list(args.neighbours)
+                if NEIGHBOURS:
+                    neighbor_queries = list(NEIGHBOURS)
                 else:
                     neighbor_queries = best_vocab_list[:3]
 
                 neighbour_report = compile_neighbours(
-                    neighbor_queries, best_vocab_to_id, embeddings, args.top_k
+                    neighbor_queries, best_vocab_to_id, embeddings, TOP_K
                 )
                 with (output_path / "glove_neighbours.json").open("w", encoding="utf-8") as handle:
                     json.dump(neighbour_report, handle, indent=2)
@@ -297,6 +251,7 @@ def run_experiments(args: argparse.Namespace) -> None:
 
 if __name__ == "__main__":
     args = parse_args()
+    # Training argument was 
     if args.run:
         run_training(args)
     else:

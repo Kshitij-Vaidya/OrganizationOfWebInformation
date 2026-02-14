@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 import json
 from pathlib import Path
 from typing import Iterable
@@ -12,83 +11,27 @@ from sklearn.metrics import classification_report, f1_score
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
+EMBEDDING_VECTORS = "output/task1/glove_w10_lr0.05_e25_d200_vectors.npy"
+EMBEDDING_VOCAB = "output/task1/glove_w10_lr0.05_e25_d200_vocab.json"
+TASK1_DIR = "output/task1"
+TASK1_HYPERPARAMETERS = "output/task1/task1_selected_hyperparameters.json"
+DIMS = [50, 100, 200, 300]
+DATASET = "conll2003"
+EPOCHS = 10
+BATCH_SIZE = 1024
+HIDDEN_SIZE = 128
+LEARNING_RATE = 1e-3
+OUTPUT_DIR = "output/task4"
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Task 4: MLP NER with pretrained embeddings")
-    # Keeping default parameters here for Task 1 results, make this always required to accomodate both task 1 and task 2 result files accordingly
-    parser.add_argument(
-        "--embedding-vectors",
-        type=str,
-        default="output/task1/glove_w10_lr0.05_e25_d200_vectors.npy",
-        help="Path to embeddings .npy (e.g., glove_w10_lr0.05_e25_d200_vectors.npy).",
-    )
-    parser.add_argument(
-        "--embedding-vocab",
-        type=str,
-        default="output/task1/glove_w10_lr0.05_e25_d200_vocab.json",
-        help="Path to vocab .json matching the embeddings.",
-    )
-    parser.add_argument(
-        "--task1-dir",
-        type=str,
-        default="output/task1",
-        help="Directory containing Task 1 embedding artifacts.",
-    )
-    parser.add_argument(
-        "--task1-selection",
-        type=str,
-        default="output/task1/task1_selected_hyperparameters.json",
-        help="Path to Task 1 selected hyperparameters JSON.",
-    )
-    parser.add_argument(
-        "--dims",
-        type=int,
-        nargs="*",
-        default=[50, 100, 200, 300],
-        help="Embedding dimensions to sweep when not using --single.",
-    )
-    parser.add_argument(
-        "--single",
-        action="store_true",
-        help="Train only with --embedding-vectors/--embedding-vocab (skip sweep).",
-    )
-    parser.add_argument(
-        "--dataset",
-        type=str,
-        default="conll2003",
-        help="Hugging Face dataset name to load.",
-    )
-    parser.add_argument(
-        "--epochs",
-        type=int,
-        default=10,
-        help="Training epochs.",
-    )
-    parser.add_argument(
-        "--batch-size",
-        type=int,
-        default=1024,
-        help="Batch size for token classification.",
-    )
-    parser.add_argument(
-        "--hidden-size",
-        type=int,
-        default=128,
-        help="Hidden layer size for the MLP.",
-    )
-    parser.add_argument(
-        "--lr",
-        type=float,
-        default=1e-3,
-        help="Learning rate.",
-    )
-    parser.add_argument(
-        "--output-dir",
-        type=str,
-        default="output/task4",
-        help="Directory for metrics output.",
-    )
-    return parser.parse_args()
+# def parse_args() -> argparse.Namespace:
+#     parser = argparse.ArgumentParser(description="Task 4: MLP NER with pretrained embeddings")
+#     # Argument for smaller testing to validate program correctness
+#     parser.add_argument(
+#         "--single",
+#         action="store_true",
+#         help="Train only with --embedding-vectors/--embedding-vocab (skip sweep).",
+#     )
+#     return parser.parse_args()
 
 
 def load_embeddings(vectors_path: Path, vocab_path: Path) -> tuple[np.ndarray, dict[str, int]]:
@@ -144,9 +87,9 @@ def train_and_evaluate(
     dataset,
     label_names: list[str],
     ner_label_map: dict[int, int],
-    args: argparse.Namespace,
 ) -> dict[str, object]:
     vectors, vocab_to_id = load_embeddings(vectors_path, vocab_path)
+    # Add an <UNK> token to the vocabulary list to handle OOV instances in the test dataset
     if "<UNK>" not in vocab_to_id:
         unk_vector = np.zeros((1, vectors.shape[1]), dtype=vectors.dtype)
         vocab_to_id["<UNK>"] = vectors.shape[0]
@@ -179,20 +122,20 @@ def train_and_evaluate(
     y_test = torch.tensor(test_labels, dtype=torch.long, device=device)
 
     train_loader = DataLoader(
-        TensorDataset(x_train, y_train), batch_size=args.batch_size, shuffle=True
+        TensorDataset(x_train, y_train), batch_size=BATCH_SIZE, shuffle=True
     )
-    dev_loader = DataLoader(TensorDataset(x_dev, y_dev), batch_size=args.batch_size)
-    test_loader = DataLoader(TensorDataset(x_test, y_test), batch_size=args.batch_size)
+    dev_loader = DataLoader(TensorDataset(x_dev, y_dev), batch_size=BATCH_SIZE)
+    test_loader = DataLoader(TensorDataset(x_test, y_test), batch_size=BATCH_SIZE)
 
     model = TokenMLP(
         input_dim=vectors.shape[1],
-        hidden_dim=args.hidden_size,
+        hidden_dim=HIDDEN_SIZE,
         num_labels=len(label_names),
     ).to(device)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE)
     criterion = nn.CrossEntropyLoss()
 
-    for epoch in range(1, args.epochs + 1):
+    for epoch in range(1, EPOCHS + 1):
         model.train()
         train_loss = 0.0
         for batch_x, batch_y in train_loader:
@@ -255,43 +198,43 @@ def train_and_evaluate(
         "embedding_vectors": str(vectors_path),
         "embedding_vocab": str(vocab_path),
         "num_labels": len(label_names),
-        "epochs": args.epochs,
-        "batch_size": args.batch_size,
-        "hidden_size": args.hidden_size,
-        "learning_rate": args.lr,
+        "epochs": EPOCHS,
+        "batch_size": BATCH_SIZE,
+        "hidden_size": HIDDEN_SIZE,
+        "learning_rate": LEARNING_RATE,
         "dev": {"weighted_f1": dev_f1, "classification_report": dev_report},
         "test": {"weighted_f1": test_f1, "classification_report": test_report},
     }
 
 
 def main() -> None:
-    args = parse_args()
-    output_dir = Path(args.output_dir)
+    output_dir = Path(OUTPUT_DIR)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    dataset = load_dataset(args.dataset)
+    dataset = load_dataset(DATASET)
     ner_feature = dataset["train"].features["ner_tags"]
     label_names = ner_feature.feature.names
     ner_label_map = {idx: idx for idx in range(len(label_names))}
 
-    if args.single:
-        vectors_path = Path(args.embedding_vectors)
-        vocab_path = Path(args.embedding_vocab)
-        metrics = train_and_evaluate(
-            vectors_path,
-            vocab_path,
-            dataset,
-            label_names,
-            ner_label_map,
-            args,
-        )
-        metrics_path = output_dir / "task4_metrics.json"
-        with metrics_path.open("w", encoding="utf-8") as handle:
-            json.dump(metrics, handle, indent=2)
-        print("Task 4 complete. Metrics written to", metrics_path)
-        return
+    # Run a single experiment over the model hyperparameters without any dimension sweeps
+    # if args.single:
+    #     vectors_path = Path(EMBEDDING_VECTORS)
+    #     vocab_path = Path(EMBEDDING_VOCAB)
+    #     metrics = train_and_evaluate(
+    #         vectors_path,
+    #         vocab_path,
+    #         dataset,
+    #         label_names,
+    #         ner_label_map,
+    #         args,
+    #     )
+    #     metrics_path = output_dir / "task4_metrics.json"
+    #     with metrics_path.open("w", encoding="utf-8") as handle:
+    #         json.dump(metrics, handle, indent=2)
+    #     print("Task 4 complete. Metrics written to", metrics_path)
+    #     return
 
-    selection_path = Path(args.task1_selection)
+    selection_path = Path(TASK1_HYPERPARAMETERS)
     with selection_path.open("r", encoding="utf-8") as handle:
         selected = json.load(handle)
 
@@ -301,11 +244,11 @@ def main() -> None:
     lr_text = format_lr(learning_rate)
 
     metrics_summary: list[dict[str, object]] = []
-    for dim in args.dims:
+    for dim in DIMS:
         vectors_name = f"glove_w{window_size}_lr{lr_text}_e{epochs}_d{dim}_vectors.npy"
         vocab_name = f"glove_w{window_size}_lr{lr_text}_e{epochs}_d{dim}_vocab.json"
-        vectors_path = Path(args.task1_dir) / vectors_name
-        vocab_path = Path(args.task1_dir) / vocab_name
+        vectors_path = Path(TASK1_DIR) / vectors_name
+        vocab_path = Path(TASK1_DIR) / vocab_name
 
         print(f"\nTraining MLP for d={dim} using {vectors_name}")
         metrics = train_and_evaluate(
@@ -314,7 +257,6 @@ def main() -> None:
             dataset,
             label_names,
             ner_label_map,
-            args,
         )
         metrics["embedding_dimension"] = dim
         metrics["task1_selected"] = selected

@@ -1,0 +1,12 @@
+{
+  "best_d": 200,
+  "neighbors_report": "task5_neighbor_comparison_d200.json",
+  "mlp_raw_metrics": "task5_mlp_svd_raw_d200_metrics.json",
+  "mlp_tfidf_metrics": "task5_mlp_svd_tfidf_d200_metrics.json",
+  "comparison": {
+    "dev_weighted_f1_raw": 0.7721547218109037,
+    "dev_weighted_f1_tfidf": 0.7722149169648967,
+    "test_weighted_f1_raw": 0.762694707810152,
+    "test_weighted_f1_tfidf": 0.7624663323355084
+  }
+}

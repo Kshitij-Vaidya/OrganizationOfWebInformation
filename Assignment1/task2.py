@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 import json
 from pathlib import Path
 from typing import Sequence
@@ -18,73 +17,40 @@ from utils import (
     save_svd_embeddings,
 )
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Train GloVe embeddings for Task 1")
-    parser.add_argument(
-        "--data-path",
-        type=str,
-        default="data/updated_vocab_document_dict.json",
-        help="Path to the CC-News vocabulary-document mapping JSON.",
-    )
-    parser.add_argument(
-        "--output-dir",
-        type=str,
-        default="output/task2",
-        help="Directory where embeddings and metadata will be stored.",
-    )
-    parser.add_argument(
-        "--d",
-        type=int,
-        default=200,
-        help="Dimensionality of the learned embeddings.",
-    )
-    parser.add_argument(
-        "--seed",
-        type=int,
-        default=17,
-        help="Random seed for reproducibility.",
-    )
-    parser.add_argument(
-        "--neighbours",
-        nargs="*",
-        default=None,
-        help="Optional list of vocabulary tokens for nearest neighbour inspection.",
-    )
-    parser.add_argument(
-        "--top-k",
-        type=int,
-        default=5,
-        help="Number of neighbors to report when --neighbours is provided.",
-    )
-    return parser.parse_args()
+DATA_PATH = "data/updated_vocab_document_dict.json"
+OUTPUT_DIR = "output/task2"
+NEIGHBOURS = ["data", "cities", "temperature"]
+SEED = 17
+VECTOR_SIZE = 200
+TOP_K = 5
 
-def run_svd(args: argparse.Namespace) -> None:
-    # vocab, corpus = load_data(args.data_path)
+def run_svd() -> None:
+    # vocab, corpus = load_data(DATA_PATH)
     # vocab_list, vocab_to_id = build_vocabulary_index(vocab)
     # tokenized_corpus = tokenize_corpus(corpus, vocab_filter=set(vocab_list))
 
     # # Placeholder for co-occurrence matrix construction and SVD
     # # cooccurrence_matrix = build_cooccurrence_matrix(tokenized_corpus, vocab_to_id, window_size=args.window_size)
-    # # embeddings = perform_svd(cooccurrence_matrix, vector_size=args.d)
+    # # embeddings = perform_svd(cooccurrence_matrix, vector_size=VECTOR_SIZE)
 
     # # For demonstration, we'll create random embeddings
-    # np.random.seed(args.seed)
-    # embeddings = np.random.rand(len(vocab_list), args.d)
+    # np.random.seed(SEED)
+    # embeddings = np.random.rand(len(vocab_list), VECTOR_SIZE)
 
-    # output_dir = Path(args.output_dir)
+    # output_dir = Path(OUTPUT_DIR)
     # output_dir.mkdir(parents=True, exist_ok=True)
     # save_embeddings(embeddings, vocab_list, output_dir / "embeddings.json")
 
-    # if args.neighbours:
-    #     for token in args.neighbours:
+    # if NEIGHBOURS:
+    #     for token in NEIGHBOURS:
     #         if token in vocab_to_id:
     #             token_id = vocab_to_id[token]
-    #             neighbors = find_nearest_neighbors(embeddings, token_id, top_k=args.top_k)
+    #             neighbors = find_nearest_neighbors(embeddings, token_id, top_k=TOP_K)
     #             print(f"Nearest neighbors for '{token}': {[vocab_list[n] for n in neighbors]}")
     #         else:
     #             print(f"Token '{token}' not found in vocabulary.")
     print("Loading data and building vocabulary...")
-    vocab, corpus = load_data(args.data_path)
+    vocab, corpus = load_data(DATA_PATH)
     vocab_list, vocab_to_id = build_vocabulary_index(vocab)
     token_sequences = tokenize_corpus(corpus, set(vocab_list))
 
@@ -93,18 +59,18 @@ def run_svd(args: argparse.Namespace) -> None:
     term_document_matrix: sparse.csr_matrix = gen_term_document_matrix(token_sequences, vocab_to_id)
 
     print("Performing truncated SVD...")
-    embeddings = truncated_svd(term_document_matrix, vector_size=args.d, seed=args.seed)
+    embeddings = truncated_svd(term_document_matrix, vector_size=VECTOR_SIZE, seed=SEED)
 
-    save_svd_embeddings(output_dir=args.output_dir, vocab=vocab_list, embeddings=embeddings, config={"vector_size": args.d}, prefix=f"svd_d{args.d}")
-    print(f"SVD embeddings saved to {args.output_dir}")
+    save_svd_embeddings(output_dir=OUTPUT_DIR, vocab=vocab_list, embeddings=embeddings, config={"vector_size": VECTOR_SIZE}, prefix=f"svd_d{VECTOR_SIZE}")
+    print(f"SVD embeddings saved to {OUTPUT_DIR}")
 
     
-    if args.neighbours:
-        neighbor_report = compile_neighbors(args.neighbours, vocab_to_id, embeddings, args.top_k)
-        output_path = Path(args.output_dir)
-        with (output_path / f"svd_d{args.d}_neighbors.json").open("w", encoding="utf-8") as handle:
+    if NEIGHBOURS:
+        neighbor_report = compile_neighbors(NEIGHBOURS, vocab_to_id, embeddings, TOP_K)
+        output_path = Path(OUTPUT_DIR)
+        with (output_path / f"svd_d{VECTOR_SIZE}_neighbors.json").open("w", encoding="utf-8") as handle:
             json.dump(neighbor_report, handle, indent=2)
-        print("Nearest neighbor report written to", output_path / f"svd_d{args.d}_neighbors.json")
+        print("Nearest neighbor report written to", output_path / f"svd_d{VECTOR_SIZE}_neighbors.json")
 
 def compile_neighbors(
     query_tokens: Sequence[str],
@@ -125,5 +91,4 @@ def compile_neighbors(
 
 
 if __name__ == "__main__":
-    args = parse_args()
-    run_svd(args)
+    run_svd()

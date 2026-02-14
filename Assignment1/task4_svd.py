@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import argparse
 import json
 from pathlib import Path
-from typing import Iterable
 
 import numpy as np
 import torch
@@ -12,31 +10,15 @@ from sklearn.metrics import classification_report, f1_score
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
+SVD_DIR = "output/task2"
+OUTPUT_DIR = "output/task4"
+DIMS = [50, 100, 200, 300]
+EPOCHS = 10
+HIDDEN_SIZE = 128
+BATCH_SIZE = 1024
+LEARNING_RATE = 1e-3
+DATASET = "conll2003"
 
-# -----------------------------
-# CLI
-# -----------------------------
-
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Task 4: MLP NER with SVD embeddings")
-
-    parser.add_argument("--svd-dir", type=str, default="output/task2")
-    parser.add_argument("--dims", type=int, nargs="*", default=[50, 100, 200, 300])
-
-    parser.add_argument("--dataset", type=str, default="conll2003")
-    parser.add_argument("--epochs", type=int, default=10)
-    parser.add_argument("--batch-size", type=int, default=1024)
-    parser.add_argument("--hidden-size", type=int, default=128)
-    parser.add_argument("--lr", type=float, default=1e-3)
-
-    parser.add_argument("--output-dir", type=str, default="output/task4")
-
-    return parser.parse_args()
-
-
-# -----------------------------
-# Embeddings
-# -----------------------------
 
 def load_embeddings(vectors_path: Path, vocab_path: Path):
     vectors = np.load(vectors_path)
@@ -61,10 +43,6 @@ def load_embeddings(vectors_path: Path, vocab_path: Path):
     return vectors, vocab_to_id
 
 
-# -----------------------------
-# Dataset builder
-# -----------------------------
-
 def build_token_dataset(split, vocab_to_id, ner_label_map):
     token_ids = []
     label_ids = []
@@ -77,9 +55,6 @@ def build_token_dataset(split, vocab_to_id, ner_label_map):
     return np.array(token_ids, dtype=np.int64), np.array(label_ids, dtype=np.int64)
 
 
-# -----------------------------
-# Model
-# -----------------------------
 
 class TokenMLP(nn.Module):
     def __init__(self, d, hidden, num_labels):
@@ -95,11 +70,8 @@ class TokenMLP(nn.Module):
         return self.net(x)
 
 
-# -----------------------------
-# Train + evaluate
-# -----------------------------
 
-def train_and_evaluate(vectors_path, vocab_path, dataset, label_names, args):
+def train_and_evaluate(vectors_path, vocab_path, dataset, label_names):
 
     vectors, vocab_to_id = load_embeddings(vectors_path, vocab_path)
 
@@ -121,17 +93,16 @@ def train_and_evaluate(vectors_path, vocab_path, dataset, label_names, args):
     ydv = torch.tensor(dv_labels, device=device, dtype=torch.long)
     yte = torch.tensor(te_labels, device=device, dtype=torch.long)
 
-    train_loader = DataLoader(TensorDataset(Xtr, ytr), batch_size=args.batch_size, shuffle=True)
-    dev_loader = DataLoader(TensorDataset(Xdv, ydv), batch_size=args.batch_size)
-    test_loader = DataLoader(TensorDataset(Xte, yte), batch_size=args.batch_size)
+    train_loader = DataLoader(TensorDataset(Xtr, ytr), batch_size=BATCH_SIZE, shuffle=True)
+    dev_loader = DataLoader(TensorDataset(Xdv, ydv), batch_size=BATCH_SIZE)
+    test_loader = DataLoader(TensorDataset(Xte, yte), batch_size=BATCH_SIZE)
 
-    model = TokenMLP(vectors.shape[1], args.hidden_size, len(label_names)).to(device)
+    model = TokenMLP(vectors.shape[1], HIDDEN_SIZE, len(label_names)).to(device)
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE)
     loss_fn = nn.CrossEntropyLoss()
 
-    # ---- training ----
-    for epoch in range(args.epochs):
+    for _ in range(EPOCHS):
         model.train()
         for xb, yb in train_loader:
             optimizer.zero_grad()
@@ -139,7 +110,6 @@ def train_and_evaluate(vectors_path, vocab_path, dataset, label_names, args):
             loss.backward()
             optimizer.step()
 
-    # ---- eval helper ----
     def eval_loader(loader):
         model.eval()
         preds, gold = [], []
@@ -164,22 +134,17 @@ def train_and_evaluate(vectors_path, vocab_path, dataset, label_names, args):
     return eval_loader(dev_loader), eval_loader(test_loader)
 
 
-# -----------------------------
-# Main
-# -----------------------------
-
 def main():
-    args = parse_args()
-    outdir = Path(args.output_dir)
+    outdir = Path(OUTPUT_DIR)
     outdir.mkdir(parents=True, exist_ok=True)
 
-    dataset = load_dataset(args.dataset)
+    dataset = load_dataset(DATASET)
     label_names = dataset["train"].features["ner_tags"].feature.names
 
-    for d in args.dims:
+    for d in DIMS:
 
-        vec_path = Path(args.svd_dir) / f"svd_d{d}_vectors.npy"
-        vocab_path = Path(args.svd_dir) / f"svd_d{d}_vocab.json"
+        vec_path = Path(SVD_DIR) / f"svd_d{d}_vectors.npy"
+        vocab_path = Path(SVD_DIR) / f"svd_d{d}_vocab.json"
 
         if not vec_path.exists():
             print("Missing:", vec_path)
@@ -188,17 +153,17 @@ def main():
         print(f"\nTraining SVD-MLP for d={d}")
 
         dev_metrics, test_metrics = train_and_evaluate(
-            vec_path, vocab_path, dataset, label_names, args
+            vec_path, vocab_path, dataset, label_names
         )
 
         result = {
             "embedding_vectors": str(vec_path),
             "embedding_vocab": str(vocab_path),
             "num_labels": len(label_names),
-            "epochs": args.epochs,
-            "batch_size": args.batch_size,
-            "hidden_size": args.hidden_size,
-            "learning_rate": args.lr,
+            "epochs": EPOCHS,
+            "batch_size": BATCH_SIZE,
+            "hidden_size": HIDDEN_SIZE,
+            "learning_rate": LEARNING_RATE,
             "dev": dev_metrics,
             "test": test_metrics,
             "embedding_dimension": d,

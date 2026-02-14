@@ -16,51 +16,20 @@ from utils import CRFFeatureConfig, sentence_to_features, sentence_to_labels
 import sklearn_crfsuite
 from sklearn_crfsuite import metrics
 
+DATASET = "conll2003"
+OUTPUT_DIR = "output/task3"
+C1 = 0.1
+C2 = 0.1
+MAX_ITERATIONS = 200
+WINDOW_SIZE = 2
+TOP_K = 10
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train CRF NER model for CoNLL-2003")
     parser.add_argument(
-        "--dataset",
-        type=str,
-        default="conll2003",
-        help="Hugging Face dataset name to load.",
-    )
-    parser.add_argument(
-        "--output-dir",
-        type=str,
-        default="output/task3",
-        help="Directory where Task 3 results will be saved.",
-    )
-    parser.add_argument("--c1", type=float, default=0.1, help="CRF L1 regularization strength.")
-    parser.add_argument("--c2", type=float, default=0.1, help="CRF L2 regularization strength.")
-    parser.add_argument(
-        "--max-iterations",
-        type=int,
-        default=200,
-        help="Maximum training iterations for CRF.",
-    )
-    parser.add_argument(
-        "--window-size",
-        type=int,
-        default=2,
-        help="Context window size used for feature extraction.",
-    )
-    parser.add_argument(
-        "--seed",
-        type=int,
-        default=17,
-        help="Random seed for reproducibility.",
-    )
-    parser.add_argument(
         "--run",
         action="store_true",
         help="Train only the full feature model (skip experiments).",
-    )
-    parser.add_argument(
-        "--top-k",
-        type=int,
-        default=10,
-        help="Number of top features to report by absolute weight.",
     )
     return parser.parse_args()
 
@@ -80,13 +49,12 @@ def build_dataset(
 def train_crf(
     x_train: list[list[dict[str, object]]],
     y_train: list[list[str]],
-    args: argparse.Namespace,
 ) -> sklearn_crfsuite.CRF:
     model = sklearn_crfsuite.CRF(
         algorithm="lbfgs",
-        c1=args.c1,
-        c2=args.c2,
-        max_iterations=args.max_iterations,
+        c1=C1,
+        c2=C2,
+        max_iterations=MAX_ITERATIONS,
         all_possible_transitions=True,
         all_possible_states=True,
     )
@@ -112,7 +80,7 @@ def evaluate_model(
     )
     return {"weighted_f1": float(f1), "classification_report": report}
 
-
+# Feature templates were determined and compiled using Copilot
 def collect_feature_templates(config: CRFFeatureConfig) -> list[str]:
     templates = ["bias"]
     if config.include_lexical:
@@ -182,14 +150,13 @@ def run_single_experiment(
     dev_sentences: list[list[tuple[str, str, str, str]]],
     test_sentences: list[list[tuple[str, str, str, str]]],
     labels: list[str],
-    args: argparse.Namespace,
 ) -> dict[str, object]:
     x_train, y_train = build_dataset(train_sentences, config)
     x_dev, y_dev = build_dataset(dev_sentences, config)
     x_test, y_test = build_dataset(test_sentences, config)
 
     start = time.perf_counter()
-    model = train_crf(x_train, y_train, args)
+    model = train_crf(x_train, y_train)
     latency = time.perf_counter() - start
 
     dev_metrics = evaluate_model(model, x_dev, y_dev, labels)
@@ -207,10 +174,10 @@ def run_single_experiment(
 
 def main() -> None:
     args = parse_args()
-    output_dir = Path(args.output_dir)
+    output_dir = Path(OUTPUT_DIR)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    dataset = load_dataset(args.dataset)
+    dataset = load_dataset(DATASET)
     ner_feature = dataset["train"].features["ner_tags"]
     pos_feature = dataset["train"].features["pos_tags"]
     chunk_feature = dataset["train"].features["chunk_tags"]
@@ -230,7 +197,7 @@ def main() -> None:
     test_sentences = split_to_sentences(dataset["test"])
 
     labels = [label for label in ner_feature.feature.names if label != "O"]
-
+    # Run experiments using partial or complete set of CRF features to check for relative feature importances
     experiment_configs = [
         (
             "lexical_only",
@@ -238,7 +205,7 @@ def main() -> None:
                 include_lexical=True,
                 include_shape=False,
                 include_subword=False,
-                window_size=args.window_size,
+                window_size=WINDOW_SIZE,
             ),
         ),
         (
@@ -247,7 +214,7 @@ def main() -> None:
                 include_lexical=True,
                 include_shape=True,
                 include_subword=False,
-                window_size=args.window_size,
+                window_size=WINDOW_SIZE,
             ),
         ),
         (
@@ -256,7 +223,7 @@ def main() -> None:
                 include_lexical=True,
                 include_shape=True,
                 include_subword=True,
-                window_size=args.window_size,
+                window_size=WINDOW_SIZE,
             ),
         ),
     ]
@@ -272,7 +239,6 @@ def main() -> None:
             dev_sentences,
             test_sentences,
             labels,
-            args,
         )
         results.append(result)
 
@@ -297,7 +263,7 @@ def main() -> None:
 
     feature_report = {
         "feature_templates": collect_feature_templates(best_config),
-        "top_features": extract_feature_importance(best_model, args.top_k),
+        "top_features": extract_feature_importance(best_model, TOP_K),
     }
 
     with (output_dir / "task3_feature_report.json").open("w", encoding="utf-8") as handle:
