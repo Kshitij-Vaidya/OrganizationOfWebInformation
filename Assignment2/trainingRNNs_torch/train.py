@@ -15,13 +15,13 @@ from model import make_model
 # DO THIS
 def _sigmoid_sat_dist(v: torch.Tensor) -> torch.Tensor:
     # v in [0,1]
-    pass
+    return torch.minimum(v, 1 - v)
 
 
 # DO THIS
 def _tanh_sat_dist(v: torch.Tensor) -> torch.Tensor:
     # v in [-1,1]
-    pass
+    return 1 - torch.abs(v)
 
 
 def _hidden_sat_time(model, h: torch.Tensor) -> torch.Tensor:
@@ -147,6 +147,38 @@ def grad_time_profile(task, model, x: torch.Tensor, y_onehot: torch.Tensor, coll
     # Then sat_t using _hidden_sat_time.
     # Then if extras was passed in and is a dict, and the model is GRU,
     # also compute z_sat_t and r_sat_t using _sigmoid_sat_dist on the gate pre-activations.
+    model.zero_grad(set_to_none=True)
+    loss, err, _, h, extras = compute_loss_and_error(
+        task,
+        model,
+        x,
+        y_onehot,
+        return_extras=collect_extras,
+    )
+
+    dH = torch.autograd.grad(
+        loss,
+        h,
+        retain_graph=False,
+        create_graph=False,
+        allow_unused=True,
+    )[0]
+    if dH is None:
+        g_t = torch.zeros(h.shape[0], device=h.device, dtype=h.dtype)
+    else:
+        g_t = dH.norm(dim=2).mean(dim=1)
+    a_t = model.act_deriv_from_h(h).mean(dim=(1, 2))
+    sat_t = _hidden_sat_time(model, h)
+
+    z_sat_t = None
+    r_sat_t = None
+    if collect_extras and isinstance(extras, dict):
+        if "z" in extras:
+            z_vals = torch.sigmoid(extras["z"])
+            z_sat_t = _sigmoid_sat_dist(z_vals).mean(dim=(1, 2))
+        if "r" in extras:
+            r_vals = torch.sigmoid(extras["r"])
+            r_sat_t = _sigmoid_sat_dist(r_vals).mean(dim=(1, 2))
 
     return (
         loss.detach(),
@@ -161,7 +193,13 @@ def grad_time_profile(task, model, x: torch.Tensor, y_onehot: torch.Tensor, coll
 
 # DO THIS
 def global_grad_norm(params):
-    pass
+    total = 0.0
+    for p in params:
+        if p.grad is None:
+            continue
+        g = p.grad.detach()
+        total += float((g * g).sum().item())
+    return float(np.sqrt(total))
 
 def clip_rescale(params, cutoff: float):
     # rescale grads if global norm > cutoff

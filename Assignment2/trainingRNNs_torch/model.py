@@ -26,7 +26,7 @@ def _tanh_saturation_distance(h: torch.Tensor) -> torch.Tensor:
 def _sigmoid_saturation_distance(h: torch.Tensor) -> torch.Tensor:
     """Distance to saturation for sigmoid outputs in [0, 1].
     """
-    return np.minimum(h, 1 - h)
+    return torch.minimum(h, 1 - h)
 
 
 class VanillaRNN(nn.Module):
@@ -150,6 +150,7 @@ class VanillaRNN(nn.Module):
         for t in range(T):  
             x_t = u[t]
             hidden = hidden @ self.W_hh + x_t @ self.W_uh + self.b_hh
+            hidden = self.act(hidden)
             hidden_all.append(hidden)
             output = hidden @ self.W_hy + self.b_hy
             outputs_all.append(output)
