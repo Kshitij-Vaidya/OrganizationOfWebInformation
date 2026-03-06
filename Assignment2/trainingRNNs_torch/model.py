@@ -292,6 +292,13 @@ class GRUModel(nn.Module):
             "classif_type": np.array(self.classif_type),
             "model_type": np.array("gru"),
         }
+    
+    def act_deriv_from_h(self, h: torch.Tensor) -> torch.Tensor:
+        """
+        Derivative of tanh activation wrt pre-activation, expressed using h = tanh(preact).
+        tanh: 1 - h^2
+        """
+        return 1.0 - h * h
 
     # DO THIS
     def forward(self, u: torch.Tensor, return_extras: bool = False):
