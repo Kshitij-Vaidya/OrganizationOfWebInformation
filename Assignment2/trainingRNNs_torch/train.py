@@ -159,9 +159,9 @@ def grad_time_profile(task, model, x: torch.Tensor, y_onehot: torch.Tensor, coll
     dH = torch.autograd.grad(
         loss,
         h,
-        retain_graph=False,
-        create_graph=False,
-        allow_unused=True,
+        retain_graph=True,
+        create_graph=True,
+        # allow_unused=True,
     )[0]
     if dH is None:
         g_t = torch.zeros(h.shape[0], device=h.device, dtype=h.dtype)

@@ -155,15 +155,20 @@ class VanillaRNN(nn.Module):
             output = hidden @ self.W_hy + self.b_hy
             outputs_all.append(output)
         h = torch.stack(hidden_all, dim=0)
+        # Compute all_logits
+        all_logits = (h.reshape(T * B, self.nhid) @ self.W_hy + self.b_hy).reshape(T, B, self.nout)
         if self.classif_type == "lastSoftmax":
-            logits = outputs_all[-1]
-            logits = logits.reshape((B, self.nout))
+            # logits = outputs_all[-1]
+            # logits = logits.reshape((B, self.nout))
+            logits = all_logits[-1]
         elif self.classif_type == "softmax":
-            logits = torch.stack(outputs_all, dim=0)
-            logits = logits.reshape((T * B, self.nout))
+            # logits = torch.stack(outputs_all, dim=0)
+            # logits = logits.reshape((T * B, self.nout))
+            logits = all_logits.reshape(T*B, self.nout)
         elif self.classif_type == "lastLinear":
-            logits = outputs_all[-1]
-            logits = logits.reshape((B, self.nout))
+            # logits = outputs_all[-1]
+            # logits = logits.reshape((B, self.nout))
+            logits = all_logits[-1]
         else:
             raise ValueError(f"Unknown classif_type={self.classif_type}")
         return logits, h
@@ -336,15 +341,20 @@ class GRUModel(nn.Module):
             h_tilde_all.append(h_tilde_pre)
         
         h = torch.stack(hidden_all, dim=0)
+
+        all_logits = (h.reshape(T * B, self.nhid) @ self.W_hy + self.b_y).reshape(T, B, self.nout)
         if self.classif_type == "lastSoftmax":
-            logits = outputs_all[-1]
-            logits = logits.reshape((B, self.nout))
+            # logits = outputs_all[-1]
+            # logits = logits.reshape((B, self.nout))
+            logits = all_logits[-1]
         elif self.classif_type == "softmax":
-            logits = torch.stack(outputs_all, dim=0)
-            logits = logits.reshape((T * B, self.nout))
+            # logits = torch.stack(outputs_all, dim=0)
+            # logits = logits.reshape((T * B, self.nout))
+            logits = all_logits.reshape(T*B, self.nout)
         elif self.classif_type == "lastLinear":
-            logits = outputs_all[-1]
-            logits = logits.reshape((B, self.nout))
+            # logits = outputs_all[-1]
+            # logits = logits.reshape((B, self.nout))
+            logits = all_logits[-1]
         else:
             raise ValueError(f"Unknown classif_type={self.classif_type}")
         if not return_extras:
