@@ -3,7 +3,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 save_dir = "plots"
-filename = "EC_torder_alpha05_clip075_final_state.npz"
+filename = "EC_torder_alpha8_noclip_final_state.npz"
 z = np.load(f"npz_files/{filename}")
 
 valid_err = z["valid_error"] # (num_checkpoints,)
