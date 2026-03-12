@@ -1,0 +1,13 @@
+\begin{tabular}{lllcccccc}
+\toprule
+Run & Task & Model & Clip & $\log_{10}\|dL/dh_t\|$ & $\mu_{sat}$ & $sat<0.05$(\%) & $\rho(W_{hh})$ (last) & bestValidErr(\%) \\
+\midrule
+A1 & mem & RNN & none & -4.22 & 0.017 & 99.5 & 14.20 & 100.00 \\
+A2 & mem & RNN & 0.05 & -4.58 & 0.628 & 0.0 & 1.14 & 100.00 \\
+A3 & mem & RNN & 0.01 & -4.60 & 0.611 & 0.0 & 1.12 & 100.00 \\
+A4 & mem & GRU & none & -6.07 & 0.538 & 0.0 & 2.01 & 100.00 \\
+A5 & mem & GRU & 0.05 & -4.18 & 0.850 & 0.0 & 1.29 & 100.00 \\
+B1 & mul & RNN & none & -12.00 & 0.939 & 0.0 & 0.71 & 25.90 \\
+B2 & mul & GRU & none & -12.00 & 0.995 & 0.0 & 0.08 & 24.25 \\
+\bottomrule
+\end{tabular}
