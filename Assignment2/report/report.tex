@@ -16,7 +16,7 @@
 }
 
 \title{CS728 Programming Assignment 2}
-% \author{Kshitij Vaidya}
+\author{Kshitij Vaidya (22B1829), Jay Mehta (22B1281), Tanay Bhat (22B3303)}
 
 \begin{document}
 \maketitle
@@ -49,6 +49,7 @@
   \centering
   \input{summary_table.tex}
   \caption{Per Run Summary}
+  \label{tab:summary}
 \end{table}
 
 \section{Results: Memorization (A1--A5)}
@@ -274,9 +275,5 @@ python -m trainingRNNs_torch.train --task mul --model rnn --alpha 0.0 \
 python -m trainingRNNs_torch.train --task mul --model gru --alpha 0.0 \
   --clipstyle nothing --diagGates --name B2_mul_gru_noclip [common flags...]
 \end{verbatim}
-
-\section{Reproducibility Notes}
-All plots embedded in this report are stored in \texttt{report/images/}.
-Additional plots (gradient norm curves, $\rho(W_{hh})$ curves, and GRU gate histograms) were generated from the saved \texttt{*\_final\_state.npz} files using \texttt{report/generate\_extra\_plots.py}.
 
 \end{document}
