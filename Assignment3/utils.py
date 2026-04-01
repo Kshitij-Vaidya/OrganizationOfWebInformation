@@ -1,8 +1,10 @@
 import json
-from transformers import AutoModelForCausalLM, AutoTokenizer
+import math
+import re
+from transformers import AutoModelForCausalLM, AutoTokenizer, AutoModel
 import torch
 import os 
-os.environ["TRANSFORMERS_OFFLINE"] = "1"
+# os.environ["TRANSFORMERS_OFFLINE"] = "1" # remove this line when downloading fresh
 import numpy as np
 import pandas as pd
 
@@ -116,3 +118,107 @@ def get_queries_and_items():
     with open("data/train_queries.json", "r") as f: train_queries  = json.load(f)
     with open("data/tools.json", "r") as f: tools = json.load(f)
     return train_queries, test_queries, tools
+
+
+def load_dense_encoder(model_name, device, dtype=torch.float32):
+    tokenizer = AutoTokenizer.from_pretrained(model_name, local_files_only=False)
+    model = AutoModel.from_pretrained(model_name, dtype=dtype, local_files_only=False)
+    model.to(device)
+    model.eval()
+    return tokenizer, model
+
+
+def _mean_pool(last_hidden_state, attention_mask):
+    mask = attention_mask.unsqueeze(-1).type_as(last_hidden_state)
+    masked = last_hidden_state * mask
+    denom = mask.sum(dim=1).clamp(min=1.0)
+    return masked.sum(dim=1) / denom
+
+
+def _l2_normalize(x, eps=1e-12):
+    return x / torch.clamp(x.norm(p=2, dim=-1, keepdim=True), min=eps)
+
+
+def encode_texts(texts, tokenizer, model, device, batch_size=32):
+    embeddings = []
+    for i in range(0, len(texts), batch_size):
+        batch = texts[i:i + batch_size]
+        inputs = tokenizer(
+            batch,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=512,
+        ).to(device)
+        with torch.no_grad():
+            outputs = model(**inputs)
+            pooled = _mean_pool(outputs.last_hidden_state, inputs.attention_mask)
+            embeddings.append(_l2_normalize(pooled).cpu())
+    return torch.cat(embeddings, dim=0)
+
+
+def compute_recall_at_k(ranked_ids, gold_id, k_list=(1, 5)):
+    recalls = {}
+    for k in k_list:
+        recalls[k] = 1.0 if gold_id in ranked_ids[:k] else 0.0
+    return recalls
+
+
+def simple_tokenize(text):
+    return re.findall(r"[A-Za-z0-9_]+", text.lower())
+
+
+class BM25Okapi:
+    def __init__(self, corpus_tokens, k1=1.5, b=0.75):
+        self.k1 = k1
+        self.b = b
+        self.corpus_tokens = corpus_tokens
+        self.doc_freqs = []
+        self.idf = {}
+        self.doc_len = []
+        self.avgdl = 0.0
+        self._initialize()
+
+    def _initialize(self):
+        df = {}
+        total_len = 0
+        for tokens in self.corpus_tokens:
+            freqs = {}
+            for t in tokens:
+                freqs[t] = freqs.get(t, 0) + 1
+            self.doc_freqs.append(freqs)
+            self.doc_len.append(len(tokens))
+            total_len += len(tokens)
+            for t in freqs.keys():
+                df[t] = df.get(t, 0) + 1
+        self.avgdl = total_len / max(len(self.corpus_tokens), 1)
+        total_docs = len(self.corpus_tokens)
+        for t, freq in df.items():
+            self.idf[t] = math.log(1 + (total_docs - freq + 0.5) / (freq + 0.5))
+
+    def get_scores(self, query_tokens):
+        scores = [0.0] * len(self.corpus_tokens)
+        for idx, freqs in enumerate(self.doc_freqs):
+            score = 0.0
+            dl = self.doc_len[idx]
+            for t in query_tokens:
+                if t not in freqs:
+                    continue
+                tf = freqs[t]
+                idf = self.idf.get(t, 0.0)
+                denom = tf + self.k1 * (1 - self.b + self.b * dl / self.avgdl)
+                score += idf * (tf * (self.k1 + 1)) / denom
+            scores[idx] = score
+        return scores
+
+
+def build_bm25_index(tool_texts):
+    corpus_tokens = [simple_tokenize(t) for t in tool_texts]
+    return BM25Okapi(corpus_tokens)
+
+
+def bm25_rank(query, bm25):
+    query_tokens = simple_tokenize(query)
+    scores = bm25.get_scores(query_tokens)
+    ranked = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)
+    return ranked, scores
