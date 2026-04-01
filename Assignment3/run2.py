@@ -68,59 +68,79 @@ def analyze_gold_attention(result, save_path="plot2/gold_attention_plot.png"):
                         - gold_score
                         - gold_rank
     GOAL: Using the results data, generate a visualization that shows how attention to the gold tool varies with its position in the prompt.
-
-    Requirements:
-        - The plot should clearly illustrate whether position affects attention.
-        - Save the plot as an image file under folder plot2.
-        - You are free to choose how to aggregate and visualize the data.
     """
-
-    # Create output directory if it doesn't exist
+ 
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     
-    # Extract data
     positions = [r["gold_position"] for r in result]
-    scores = [r["gold_score"] for r in result]
-    ranks = [r["gold_rank"] for r in result]
-    
-    # Create figure with subplots
+    scores    = [r["gold_score"]    for r in result]
+    ranks     = [r["gold_rank"]     for r in result]
+ 
+    # --- bin-level aggregation for cleaner trend lines ---
+    max_pos = max(positions) + 1
+    bin_size = max(1, max_pos // 20)          # ~20 bins regardless of pool size
+    bins = list(range(0, max_pos + bin_size, bin_size))
+ 
+    def bin_mean(values, pos_list, bins):
+        means, centers = [], []
+        for i in range(len(bins) - 1):
+            lo, hi = bins[i], bins[i + 1]
+            vals = [v for v, p in zip(values, pos_list) if lo <= p < hi]
+            if vals:
+                means.append(np.mean(vals))
+                centers.append((lo + hi) / 2)
+        return centers, means
+ 
+    bin_centers_s, bin_scores = bin_mean(scores, positions, bins)
+    bin_centers_r, bin_ranks  = bin_mean(ranks,  positions, bins)
+ 
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-    
-    # Plot 1: Gold position vs gold score
-    axes[0].scatter(positions, scores, alpha=0.6, s=50)
-    axes[0].set_xlabel("Gold Document Position")
-    axes[0].set_ylabel("Attention Score")
-    axes[0].set_title("Attention Score vs Document Position")
+    fig.suptitle("Lost-in-the-Middle: Attention vs Gold Tool Position", fontsize=13)
+ 
+    # --- Plot 1: attention score vs position ---
+    axes[0].scatter(positions, scores, alpha=0.25, s=20, color='steelblue', label='per-query')
+    axes[0].plot(bin_centers_s, bin_scores, color='navy', linewidth=2, marker='o', label='bin mean')
+    axes[0].set_xlabel("Gold Tool Position in Prompt")
+    axes[0].set_ylabel("Attention Score (query → gold tool)")
+    axes[0].set_title("Attention Score vs Position")
+    axes[0].legend()
     axes[0].grid(True, alpha=0.3)
-    
-    # Plot 2: Gold position vs gold rank
-    axes[1].scatter(positions, ranks, alpha=0.6, s=50, color='orange')
-    axes[1].set_xlabel("Gold Document Position")
-    axes[1].set_ylabel("Rank (Lower is Better)")
-    axes[1].set_title("Document Rank vs Document Position")
+ 
+    # --- Plot 2: rank vs position ---
+    axes[1].scatter(positions, ranks, alpha=0.25, s=20, color='darkorange', label='per-query')
+    axes[1].plot(bin_centers_r, bin_ranks, color='saddlebrown', linewidth=2, marker='o', label='bin mean')
+    axes[1].set_xlabel("Gold Tool Position in Prompt")
+    axes[1].set_ylabel("Rank of Gold Tool (lower = better)")
+    axes[1].set_title("Gold Tool Rank vs Position")
+    axes[1].legend()
     axes[1].grid(True, alpha=0.3)
-    
+ 
     plt.tight_layout()
-    plt.savefig(save_path, dpi=100)
+    plt.savefig(save_path, dpi=120)
     plt.close()
-    
     print(f"Plot saved to {save_path}")
 
-def get_query_span(putils, question):
+def get_query_span(putils, question, input_ids):
     # TODO 3: Query span
     """
-    Identify the token span corresponding to the query.
-    Note: you are free to add/remove args in this function
+    Identify the token span corresponding to the query in the full tokenised prompt.
+ 
+    The prompt structure (from PromptUtils.create_prompt) is:
+        prompt_prefix | all_docs | sep | add_text1 | sep | query_prompt | prompt_suffix
+ 
+    The query_prompt is: "Query: {question}\\nCorrect tool_id:"
+    It sits just before the assistant header (prompt_suffix).
+ 
+    Strategy: measure the length of query_prompt tokens, then count back
+    from the end of the sequence (minus the suffix).
     """
-    # Tokenize just the question to get its length
-    question_tokens = putils.tokenizer(question, return_tensors="pt", add_special_tokens=False)
-    query_length = question_tokens.input_ids.shape[1]
-    
-    # Query typically starts after initial tokens (e.g., system prompt)
-    # and ends before the documents start
-    query_start = 0
-    query_end = query_length
-    
+    query_prompt = f"Query: {question}\nCorrect tool_id:"
+    query_token_len = len(
+        putils.tokenizer(query_prompt, add_special_tokens=False).input_ids
+    )
+    total_len  = input_ids.shape[0]
+    query_end   = total_len - putils.prompt_suffix_length
+    query_start = query_end - query_token_len
     return (query_start, query_end)
 
 parser = argparse.ArgumentParser()
@@ -203,7 +223,8 @@ if __name__ == '__main__':
                 attentions[0].shape - [1, h, N, N] : first layer's attention matrix for h heads
             '''
         
-        query_span = get_query_span() 
+        input_ids = inputs.input_ids[0]
+        query_span = get_query_span(putils, question, input_ids)
 
         doc_scores = query_to_docs_attention(attentions, query_span, item_spans)
 

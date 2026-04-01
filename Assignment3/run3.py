@@ -46,17 +46,37 @@ def query_to_docs_attention_heads(attentions, query_span, doc_spans, selected_he
     """
 
     doc_scores = torch.zeros(len(doc_spans), device=attentions[0].device)
+    query_start, query_end = query_span
+ 
+    for (layer_idx, head_idx) in selected_heads:
+        # attentions[layer_idx]: [1, num_heads, N, N]
+        head_attn = attentions[layer_idx][0, head_idx]   # [N, N]
+ 
+        for doc_idx, (doc_start, doc_end) in enumerate(doc_spans):
+            # sum attention from all query tokens to all tokens of this doc
+            doc_scores[doc_idx] += head_attn[query_start:query_end, doc_start:doc_end].sum()
+ 
+    # average over the number of selected heads
+    if len(selected_heads) > 0:
+        doc_scores /= len(selected_heads)
+ 
+    return doc_scores
 
-    raise NotImplementedError
 
-
-def get_query_span(input_ids, tokenizer):
+def get_query_span(putils, question, input_ids):
     # TODO 3: Query span
     """
     Identify the token span corresponding to the query.
     Note: you are free to add/remove args in this function
     """
-    raise NotImplementedError
+    query_prompt    = f"Query: {question}\nCorrect tool_id:"
+    query_token_len = len(
+        putils.tokenizer(query_prompt, add_special_tokens=False).input_ids
+    )
+    total_len   = input_ids.shape[0]
+    query_end   = total_len - putils.prompt_suffix_length
+    query_start = query_end - query_token_len
+    return (query_start, query_end)
 
 
 parser = argparse.ArgumentParser()
@@ -124,11 +144,11 @@ if __name__ == '__main__':
         inputs = tokenizer(prompt, return_tensors="pt", add_special_tokens=False).to(device)
 
         input_ids = inputs.input_ids[0]
+        query_span = get_query_span(putils, question, input_ids)
 
         with torch.no_grad():
             attentions = model(**inputs).attentions
 
-        query_span = get_query_span()
 
         doc_scores = query_to_docs_attention_heads(
             attentions,
@@ -138,13 +158,16 @@ if __name__ == '__main__':
         )
 
 
-        # TODO: ranking the docs
-        ranked_docs = torch.argsort(doc_scores, descending=True)
-        gold_rank = (ranked_docs == gold_tool_id).nonzero(as_tuple=True)[0].item()
-
-
+        # rank docs by descending score; gold_rank is 1-indexed
+        ranked_docs = torch.argsort(doc_scores, descending=True).tolist()
+        gold_rank   = ranked_docs.index(gold_tool_id) + 1   # 1-indexed
+ 
         # TODO: measure the recall@1, recall@5
-        total += 1
-
+        total        += 1
+        correct_at_1 += 1 if gold_rank == 1 else 0
+        correct_at_5 += 1 if gold_rank <= 5 else 0
+ 
     recall_at_1 = correct_at_1 / total
+    recall_at_5 = correct_at_5 / total
     print(f"\nRecall@1 (selected heads): {recall_at_1:.4f}")
+    print(f"Recall@5 (selected heads): {recall_at_5:.4f}")
