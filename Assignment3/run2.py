@@ -39,6 +39,24 @@ def query_to_docs_attention(attentions, query_span, doc_spans):
     doc_scores = torch.zeros(len(doc_spans), device=attentions[0].device)
     
     # TODO 1: implement to get final query to doc attention stored in doc_scores
+    query_start, query_end = query_span
+    
+    for layer_idx, attention_matrix in enumerate(attentions):
+        # attention_matrix: [1, heads, N, N]
+        attention_matrix = attention_matrix[0]  # [heads, N, N]
+        
+        # Average attention across all heads
+        avg_attention = attention_matrix.mean(dim=0)  # [N, N]
+        
+        # Get attention from query tokens to each document
+        for doc_idx, (doc_start, doc_end) in enumerate(doc_spans):
+            # Sum attention from query span to this document span
+            query_to_doc_attn = avg_attention[query_start:query_end, doc_start:doc_end].sum()
+            doc_scores[doc_idx] += query_to_doc_attn
+    
+    # Average across layers
+    doc_scores /= len(attentions)
+    
     return doc_scores
 
 
@@ -56,15 +74,54 @@ def analyze_gold_attention(result, save_path="plot2/gold_attention_plot.png"):
         - Save the plot as an image file under folder plot2.
         - You are free to choose how to aggregate and visualize the data.
     """
-    raise NotImplementedError
 
-def get_query_span():
+    # Create output directory if it doesn't exist
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    
+    # Extract data
+    positions = [r["gold_position"] for r in result]
+    scores = [r["gold_score"] for r in result]
+    ranks = [r["gold_rank"] for r in result]
+    
+    # Create figure with subplots
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+    
+    # Plot 1: Gold position vs gold score
+    axes[0].scatter(positions, scores, alpha=0.6, s=50)
+    axes[0].set_xlabel("Gold Document Position")
+    axes[0].set_ylabel("Attention Score")
+    axes[0].set_title("Attention Score vs Document Position")
+    axes[0].grid(True, alpha=0.3)
+    
+    # Plot 2: Gold position vs gold rank
+    axes[1].scatter(positions, ranks, alpha=0.6, s=50, color='orange')
+    axes[1].set_xlabel("Gold Document Position")
+    axes[1].set_ylabel("Rank (Lower is Better)")
+    axes[1].set_title("Document Rank vs Document Position")
+    axes[1].grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=100)
+    plt.close()
+    
+    print(f"Plot saved to {save_path}")
+
+def get_query_span(putils, question):
     # TODO 3: Query span
     """
     Identify the token span corresponding to the query.
     Note: you are free to add/remove args in this function
     """
-    return None
+    # Tokenize just the question to get its length
+    question_tokens = putils.tokenizer(question, return_tensors="pt", add_special_tokens=False)
+    query_length = question_tokens.input_ids.shape[1]
+    
+    # Query typically starts after initial tokens (e.g., system prompt)
+    # and ends before the documents start
+    query_start = 0
+    query_end = query_length
+    
+    return (query_start, query_end)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--seed', type=int, default=64)
@@ -89,7 +146,7 @@ if __name__ == '__main__':
  
 
     print("---- debug print start ----")
-    print(f"seed: {args.seed}, dataset: {args.dataset}, model: {model_name}")
+    print(f"seed: {args.seed}, model: {model_name}")
     print("model.config._attn_implementation: ", model.config._attn_implementation)
 
     dict_head_freq = {}
@@ -152,8 +209,8 @@ if __name__ == '__main__':
 
         # TODO: find gold_rank- rank of gold tool in doc_scores
         # TODO: find gold_score - score of gold tool
-        gold_rank = None
-        gold_score = None
+        gold_score = doc_scores[gold_tool_id].item()
+        gold_rank = (doc_scores > gold_score).sum().item() + 1
         
         results.append({
             "qid": qid,
@@ -163,6 +220,11 @@ if __name__ == '__main__':
         })
 
         # TODO: calucalte recall@1, recall@5 metric and print at end of loop
+        if qix == len(test_queries) - 1:
+            recall_at_1 = sum(1 for r in results if r["gold_rank"] == 1) / len(results)
+            recall_at_5 = sum(1 for r in results if r["gold_rank"] <= 5) / len(results)
+            print(f"Recall@1: {recall_at_1:.4f}")
+            print(f"Recall@5: {recall_at_5:.4f}")
 
     analyze_gold_attention(results)
 
