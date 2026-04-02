@@ -120,6 +120,7 @@ if __name__ == '__main__':
     print("\n[Phase 2] Evaluating on test set...")
     recall_at_1 = 0
     correct_at_1 = 0
+    correct_at_5 = 0
     total = 0
 
     for qix in tqdm(range(len(test_queries))):
@@ -135,8 +136,6 @@ if __name__ == '__main__':
         random.shuffle(shuffled_keys)
 
         putils = PromptUtils(
-            dataset="toole",
-            model_name=args.model,
             tokenizer=tokenizer,
             doc_ids=shuffled_keys,
             dict_all_docs=tools,
