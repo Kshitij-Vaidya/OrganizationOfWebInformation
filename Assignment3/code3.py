@@ -1,4 +1,5 @@
 import torch
+import gc
 from tqdm import tqdm
 from utils import PromptUtils
 import random 
@@ -35,7 +36,8 @@ def select_retrieval_heads(train_queries, model, tokenizer, tools, device, max_h
     num_heads  = model.config.num_attention_heads
 
     # accumulate MRR score per head  [num_layers, num_heads]
-    head_scores = torch.zeros(num_layers, num_heads, device=device)
+    target_device = model.device
+    head_scores = torch.zeros(num_layers, num_heads, device=target_device)
 
     for qix in tqdm(range(len(train_queries)), desc="Selecting heads"):
 
@@ -58,7 +60,8 @@ def select_retrieval_heads(train_queries, model, tokenizer, tools, device, max_h
         gold_tool_id = map_docname_id[gold_tool_name]
 
         prompt = putils.create_prompt(query=question)
-        inputs = tokenizer(prompt, return_tensors="pt", add_special_tokens=False).to(device)
+        inputs = tokenizer(prompt, return_tensors="pt", add_special_tokens=False)
+        inputs = inputs.to(target_device)
 
         input_ids = inputs.input_ids[0]
 
@@ -85,13 +88,13 @@ def select_retrieval_heads(train_queries, model, tokenizer, tools, device, max_h
 
         for layer_idx in range(num_layers):
             # attentions[layer_idx]: [1, num_heads, N, N]
-            layer_attn = attentions[layer_idx][0]   # [num_heads, N, N]
+            layer_attn = attentions[layer_idx][0].to(target_device)   # [num_heads, N, N]
 
             for head_idx in range(num_heads):
                 head_attn = layer_attn[head_idx]    # [N, N]
 
                 # Compute one score per doc: total attention from query → doc tokens
-                doc_scores_head = torch.zeros(num_docs, device=device)
+                doc_scores_head = torch.zeros(num_docs, device=target_device)
                 for doc_idx, (ds, de) in enumerate(item_spans):
                     doc_scores_head[doc_idx] = (
                         head_attn[query_start:query_end, ds:de].sum()
@@ -103,6 +106,11 @@ def select_retrieval_heads(train_queries, model, tokenizer, tools, device, max_h
 
                 # Accumulate MRR contribution
                 head_scores[layer_idx, head_idx] += 1.0 / gold_rank
+
+        if target_device.type == "cuda":
+            del attentions, inputs
+            torch.cuda.empty_cache()
+            gc.collect()
 
     # ---------------------------------------------------------------
     # Select the top max_heads heads by accumulated MRR score

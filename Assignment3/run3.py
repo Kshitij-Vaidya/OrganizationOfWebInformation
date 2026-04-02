@@ -7,13 +7,14 @@ Goal:
 '''
 
 import os
-os.environ["TRANSFORMERS_OFFLINE"] = "1"
-
+# os.environ["TRANSFORMERS_OFFLINE"] = "1"
+os.environ.setdefault("PYTORCH_ALLOC_CONF", "expandable_segments:True")
 import argparse
 import time
 import random
 import numpy as np
 import torch
+import gc
 from tqdm import tqdm
 
 from utils import load_model_tokenizer, PromptUtils, get_queries_and_items
@@ -30,7 +31,7 @@ def seed_all(seed):
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
 
-def query_to_docs_attention_heads(attentions, query_span, doc_spans, selected_heads):
+def query_to_docs_attention_heads(attentions, query_span, doc_spans, selected_heads, target_device):
     # TODO 2: Head-based scoring
     """
     Compute document scores using ONLY selected_heads.
@@ -45,12 +46,12 @@ def query_to_docs_attention_heads(attentions, query_span, doc_spans, selected_he
         doc_scores: tensor of shape [num_docs]
     """
 
-    doc_scores = torch.zeros(len(doc_spans), device=attentions[0].device)
+    doc_scores = torch.zeros(len(doc_spans), device=target_device)
     query_start, query_end = query_span
  
     for (layer_idx, head_idx) in selected_heads:
         # attentions[layer_idx]: [1, num_heads, N, N]
-        head_attn = attentions[layer_idx][0, head_idx]   # [N, N]
+        head_attn = attentions[layer_idx][0, head_idx].to(target_device)   # [N, N]
  
         for doc_idx, (doc_start, doc_end) in enumerate(doc_spans):
             # sum attention from all query tokens to all tokens of this doc
@@ -81,7 +82,7 @@ def get_query_span(putils, question, input_ids):
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--seed', type=int, default=64)
-parser.add_argument('--model', type=str, default="meta-llama/Llama-3.2-1B-Instruct")
+parser.add_argument('--model', type=str, default="unsloth/Llama-3.2-1B-Instruct")
 parser.add_argument('--max_heads', type=int, default=20)
 parser.add_argument('--train_samples', type=int, default=200)
 parser.add_argument("--debug", action="store_true")
@@ -92,8 +93,14 @@ if __name__ == '__main__':
 
     seed_all(args.seed)
     model_name = args.model
-    device = "cuda:0"    
-    tokenizer, model = load_model_tokenizer(model_name=model_name, device=device, dtype=torch.float16)
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    tokenizer, model = load_model_tokenizer(
+        model_name=model_name,
+        device=device,
+        dtype=torch.float16,
+        device_map="auto" if device.startswith("cuda") else None,
+    )
+    device = model.device
 
     train_queries, test_queries, tools = get_queries_and_items()
     print("\n[Phase 1] Selecting retrieval heads...")
@@ -141,7 +148,8 @@ if __name__ == '__main__':
         gold_tool_id = map_docname_id[gold_tool_name]
 
         prompt = putils.create_prompt(query=question)
-        inputs = tokenizer(prompt, return_tensors="pt", add_special_tokens=False).to(device)
+        inputs = tokenizer(prompt, return_tensors="pt", add_special_tokens=False)
+        inputs = inputs.to(device)
 
         input_ids = inputs.input_ids[0]
         query_span = get_query_span(putils, question, input_ids)
@@ -154,8 +162,14 @@ if __name__ == '__main__':
             attentions,
             query_span,
             item_spans,
-            selected_heads
+            selected_heads,
+            target_device=device,
         )
+
+        if device.type == "cuda":
+            del attentions, inputs
+            torch.cuda.empty_cache()
+            gc.collect()
 
 
         # rank docs by descending score; gold_rank is 1-indexed

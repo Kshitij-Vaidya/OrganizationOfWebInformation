@@ -10,15 +10,18 @@ import pandas as pd
 
 import random
 
-def load_model_tokenizer(model_name, device, dtype = torch.float32):
-    tokenizer = AutoTokenizer.from_pretrained(model_name, local_files_only = True)
+def load_model_tokenizer(model_name, device, dtype=torch.float32, device_map=None):
+    tokenizer = AutoTokenizer.from_pretrained(model_name, local_files_only=False)
     tokenizer.pad_token_id = tokenizer.eos_token_id
-    model = AutoModelForCausalLM.from_pretrained(model_name, 
-                                                output_attentions = True,
-                                                dtype=dtype,  
-                                                local_files_only = True, # set True when the model is already downloaded
-                                                )
-    model.to(device)
+    model = AutoModelForCausalLM.from_pretrained(
+        model_name,
+        output_attentions=True,
+        dtype=dtype,
+        local_files_only=False,  # set True when the model is already downloaded
+        device_map=device_map,
+    )
+    if device_map is None:
+        model.to(device)
     model.eval()
     return tokenizer, model
 

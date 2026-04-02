@@ -7,7 +7,7 @@ Goal:
 '''
 import gc
 import os
-os.environ["TRANSFORMERS_OFFLINE"] = "1"
+os.environ.setdefault("PYTORCH_ALLOC_CONF", "expandable_segments:True")
 import argparse
 import json 
 import time
@@ -30,20 +30,20 @@ def seed_all(seed):
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
 
-def query_to_docs_attention(attentions, query_span, doc_spans):
+def query_to_docs_attention(attentions, query_span, doc_spans, target_device):
     """
     attentions: tuple(num_layers) of [1, heads, N, N]
     query_span: (start, end)
     doc_spans: list of (start, end)
     """
-    doc_scores = torch.zeros(len(doc_spans), device=attentions[0].device)
+    doc_scores = torch.zeros(len(doc_spans), device=target_device)
     
     # TODO 1: implement to get final query to doc attention stored in doc_scores
     query_start, query_end = query_span
     
     for layer_idx, attention_matrix in enumerate(attentions):
         # attention_matrix: [1, heads, N, N]
-        attention_matrix = attention_matrix[0]  # [heads, N, N]
+        attention_matrix = attention_matrix[0].to(target_device)  # [heads, N, N]
         
         # Average attention across all heads
         avg_attention = attention_matrix.mean(dim=0)  # [N, N]
@@ -145,7 +145,7 @@ def get_query_span(putils, question, input_ids):
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--seed', type=int, default=64)
-parser.add_argument('--model', type=str, default="meta-llama/Llama-3.2-1B-Instruct")
+parser.add_argument('--model', type=str, default="unsloth/Llama-3.2-1B-Instruct")
 parser.add_argument('--top_heads', type=int, default=20)
 parser.add_argument("--debug", action="store_true", help="Enable debug mode")
 args = parser.parse_args()
@@ -154,9 +154,15 @@ args = parser.parse_args()
 if __name__ == '__main__':
     seed_all(seed=args.seed)
     model_name = args.model
-    device = "cuda:0"
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"
     
-    tokenizer, model = load_model_tokenizer(model_name=model_name, device=device, dtype=torch.float16)
+    tokenizer, model = load_model_tokenizer(
+        model_name=model_name,
+        device=device,
+        dtype=torch.float16,
+        device_map="auto" if device.startswith("cuda") else None,
+    )
+    device = model.device
     num_heads = model.config.num_attention_heads
     num_layers = model.config.num_hidden_layers
     d = getattr(model.config, "head_dim", model.config.hidden_size // model.config.num_attention_heads)
@@ -202,7 +208,8 @@ if __name__ == '__main__':
         gold_tool_id = map_docname_id[gold_tool_name]
 
         prompt = putils.create_prompt(query=question)
-        inputs = tokenizer(prompt, return_tensors = "pt", add_special_tokens = False).to(device)
+        inputs = tokenizer(prompt, return_tensors = "pt", add_special_tokens = False)
+        inputs = inputs.to(device)
 
         if args.debug and qix < 5:
             ip_ids = inputs.input_ids[0].cpu()
@@ -226,7 +233,7 @@ if __name__ == '__main__':
         input_ids = inputs.input_ids[0]
         query_span = get_query_span(putils, question, input_ids)
 
-        doc_scores = query_to_docs_attention(attentions, query_span, item_spans)
+        doc_scores = query_to_docs_attention(attentions, query_span, item_spans, target_device=device)
 
         # TODO: find gold_rank- rank of gold tool in doc_scores
         # TODO: find gold_score - score of gold tool
@@ -239,6 +246,11 @@ if __name__ == '__main__':
             "gold_score": gold_score,
             "gold_rank": gold_rank
         })
+
+        if device.type == "cuda":
+            del attentions, inputs
+            torch.cuda.empty_cache()
+            gc.collect()
 
         # TODO: calucalte recall@1, recall@5 metric and print at end of loop
         if qix == len(test_queries) - 1:
