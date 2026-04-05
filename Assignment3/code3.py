@@ -6,31 +6,6 @@ import random
 
 def select_retrieval_heads(train_queries, model, tokenizer, tools, device, max_heads=20):
     # TODO 3: Head selection
-    """
-    Identify a subset of attention heads that are most useful for retrieving the correct tool.
-
-    Strategy – Mean Reciprocal Rank (MRR) per head:
-        For every training query we run the full forward pass and, for each
-        (layer, head) pair, we compute how much attention that head sends from
-        the query tokens to each tool's token span.  We then rank all tools by
-        that score and record the reciprocal rank of the gold tool (1/rank).
-        Summing reciprocal ranks across all training queries gives each head a
-        scalar MRR score.  The top-K heads by MRR are returned.
-
-    Why MRR?
-        A head that consistently places the gold tool at rank-1 scores 1.0 per
-        query; one that places it at rank-2 scores 0.5, etc.  This smoothly
-        rewards any head that is roughly "right" even when not perfect, while
-        still strongly preferring heads that are rank-1 most of the time.
-
-    Notes:
-        - Prompt structure follows PromptUtils.create_prompt (same as Part-2).
-        - Query span is located by measuring the query_prompt token length and
-          counting back from (total_tokens - suffix_length), identical to the
-          get_query_span helper used in run2.py / run3.py.
-        - Attention extraction uses model(**inputs).attentions; no changes to
-          the model or its configuration are made.
-    """
 
     num_layers = model.config.num_hidden_layers
     num_heads  = model.config.num_attention_heads

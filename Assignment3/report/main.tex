@@ -53,12 +53,12 @@
 \end{figure}
 \section{Part 3: Retrieval Heads}
 \subsection{Head selection strategy}
-TO-DO
+
+We use the Mean Reciprocal Rank (MRR) strategy to select heads. We score each (layer, head) pair based on its consistency in ranking the gold tool. Tools ranked lower have lower reciprocal score hence if the gold tool is ranked as the best consistently, that (layer, head) pair would have a score closer to 1. This way the top $K$ heads are identified (20 in this case). The following heads were selected:
+\newline
 
 \textbf{Selected Heads:}
 [(6, 11), (7, 12), (4, 16), (5, 11), (8, 19), (10, 9), (2, 20), (10, 1), (6, 8), (10, 23), (6, 9), (5, 10), (8, 20), (8, 13), (12, 13), (5, 9), (10, 13), (10, 11), (8, 17), (10, 26)]
-
-\small{Note: format of selected heads is (layer number, head number).}
 
 
 \subsection{Results}
@@ -69,5 +69,6 @@ TO-DO
 
 \subsection{Comparison with previous methods}
 
+We see that choosing only the top 20 heads performs much better than aggregating over all heads. Hence we see that relevant information is mostly present in the top k heads. This approach performs similarly to msmacro-MiniLM from part 1. 
 
 \end{document}
