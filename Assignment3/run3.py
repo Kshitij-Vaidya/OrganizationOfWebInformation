@@ -33,19 +33,6 @@ def seed_all(seed):
 
 def query_to_docs_attention_heads(attentions, query_span, doc_spans, selected_heads, target_device):
     # TODO 2: Head-based scoring
-    """
-    Compute document scores using ONLY selected_heads.
-
-    Inputs:
-        attentions: tuple of (num_layers) each [1, heads, N, N]
-        query_span: (start, end)
-        doc_spans: list of (start, end)
-        selected_heads: list of (layer, head)
-
-    Output:
-        doc_scores: tensor of shape [num_docs]
-    """
-
     doc_scores = torch.zeros(len(doc_spans), device=target_device)
     query_start, query_end = query_span
  
@@ -66,10 +53,6 @@ def query_to_docs_attention_heads(attentions, query_span, doc_spans, selected_he
 
 def get_query_span(putils, question, input_ids):
     # TODO 3: Query span
-    """
-    Identify the token span corresponding to the query.
-    Note: you are free to add/remove args in this function
-    """
     query_prompt    = f"Query: {question}\nCorrect tool_id:"
     query_token_len = len(
         putils.tokenizer(query_prompt, add_special_tokens=False).input_ids
